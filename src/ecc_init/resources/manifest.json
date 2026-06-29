@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "global_skills": [
+    {
+      "name": "task-planning",
+      "resource": "global_skills/task-planning/SKILL.md"
+    },
+    {
+      "name": "verification-loop",
+      "resource": "global_skills/verification-loop/SKILL.md"
+    },
+    {
+      "name": "code-review",
+      "resource": "global_skills/code-review/SKILL.md"
+    },
+    {
+      "name": "security-review",
+      "resource": "global_skills/security-review/SKILL.md"
+    },
+    {
+      "name": "code-tour",
+      "resource": "global_skills/code-tour/SKILL.md"
+    },
+    {
+      "name": "dev-retrospective",
+      "resource": "global_skills/dev-retrospective/SKILL.md"
+    }
+  ],
+  "project_skills": [
+    {
+      "stack": "python",
+      "name": "python-patterns",
+      "resource": "project_skills/python-patterns/SKILL.md",
+      "upstream_path": "skills/python-patterns/SKILL.md"
+    },
+    {
+      "stack": "fastapi",
+      "name": "fastapi-patterns",
+      "resource": "project_skills/fastapi-patterns/SKILL.md",
+      "upstream_path": "skills/fastapi-patterns/SKILL.md"
+    },
+    {
+      "stack": "langchain",
+      "name": "langchain-patterns",
+      "resource": "project_skills/langchain-patterns/SKILL.md"
+    },
+    {
+      "stack": "langgraph",
+      "name": "langgraph-patterns",
+      "resource": "project_skills/langgraph-patterns/SKILL.md"
+    },
+    {
+      "stack": "typescript",
+      "name": "typescript-patterns",
+      "resource": "project_skills/typescript-patterns/SKILL.md"
+    },
+    {
+      "stack": "react",
+      "name": "react-patterns",
+      "resource": "project_skills/react-patterns/SKILL.md",
+      "upstream_path": "skills/react-patterns/SKILL.md"
+    },
+    {
+      "stack": "java",
+      "name": "java-patterns",
+      "resource": "project_skills/java-patterns/SKILL.md",
+      "upstream_path": "skills/java-coding-standards/SKILL.md"
+    },
+    {
+      "stack": "spring-boot",
+      "name": "springboot-patterns",
+      "resource": "project_skills/springboot-patterns/SKILL.md",
+      "upstream_path": "skills/springboot-patterns/SKILL.md"
+    }
+  ]
+}
