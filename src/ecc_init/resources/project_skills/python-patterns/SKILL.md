@@ -3,6 +3,8 @@ name: python-patterns
 description: 当前项目涉及 Python 代码时使用。遵循项目现有工具链，关注类型、异常、资源管理、测试和可读性。
 metadata:
   origin: ecc-init-fallback
+  source_id: ecc-upstream-pinned
+  content_version: 1
 ---
 
 # Python 项目规范

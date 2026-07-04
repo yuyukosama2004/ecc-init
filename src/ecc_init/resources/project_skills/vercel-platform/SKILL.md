@@ -1,6 +1,10 @@
 ---
 name: vercel-platform
 description: Vercel-oriented frontend build, preview, deployment, and environment guidance.
+metadata:
+  origin: ecc-init-custom
+  source_id: bundled
+  content_version: 1
 ---
 
 # Vercel Platform

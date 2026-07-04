@@ -38,7 +38,7 @@ def _selected_profile_packs(
     selected: list[str] = []
     for pack_id in profile.packs:
         pack = registry.packs[pack_id]
-        if pack.stack_conditions and not all(stack in detected_stacks for stack in pack.stack_conditions):
+        if pack.stack_conditions and not any(stack in detected_stacks for stack in pack.stack_conditions):
             continue
         selected.append(pack_id)
     for pack_id in explicit:
@@ -115,6 +115,8 @@ def build_registry_install_plan(
                 continue
             seen_components.add(component_id)
             component = registry.components[component_id]
+            if component.stack_conditions and not all(stack in detected_stacks for stack in component.stack_conditions):
+                continue
             target = _target_path(paths, component.target_scope, component.target_subdir)
             components.append(
                 ResolvedComponent(

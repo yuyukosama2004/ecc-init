@@ -3,6 +3,8 @@ name: langgraph-patterns
 description: 当前任务涉及 LangGraph 状态、节点、边、条件路由、checkpoint、interrupt、恢复或多 Agent 图时使用。
 metadata:
   origin: ecc-init-custom
+  source_id: bundled
+  content_version: 1
 ---
 
 # LangGraph 项目规范

@@ -3,6 +3,8 @@ name: fastapi-patterns
 description: 当前任务涉及 FastAPI 路由、Pydantic 模型、依赖注入、认证授权、数据库会话或接口测试时使用。
 metadata:
   origin: ecc-init-fallback
+  source_id: ecc-upstream-pinned
+  content_version: 1
 ---
 
 # FastAPI 项目规范

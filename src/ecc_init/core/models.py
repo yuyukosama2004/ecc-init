@@ -74,6 +74,7 @@ class ComponentSpec:
     target_subdir: str
     projection_include: tuple[str, ...] = ()
     projection_exclude: tuple[str, ...] = ()
+    stack_conditions: tuple[str, ...] = ()
     required: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -85,6 +86,7 @@ class ComponentSpec:
             "target_subdir": self.target_subdir,
             "projection_include": list(self.projection_include),
             "projection_exclude": list(self.projection_exclude),
+            "stack_conditions": list(self.stack_conditions),
             "required": self.required,
         }
 
@@ -98,6 +100,7 @@ class ComponentSpec:
             target_subdir=str(data["target_subdir"]),
             projection_include=_tuple(data.get("projection_include")),
             projection_exclude=_tuple(data.get("projection_exclude")),
+            stack_conditions=_tuple(data.get("stack_conditions")),
             required=bool(data.get("required", True)),
         )
 

@@ -1,14 +1,14 @@
 # Implementation Status
 
 ## Current phase
-- Phase: 8 Frontend Pack
-- Batch: 2026-07-04 continuation after phase 7 batch
+- Phase: 9 Stack Packs
+- Batch: 2026-07-04 continuation after phase 8 batch
 - Branch: main
 - Started: 2026-07-03 Asia/Shanghai
 
 ## Scope
-- In scope: frontend-essential Pack expansion, UI UX Pro Max/Vercel/Playwright-quality bundled skills, React Pack selection, frontend lifecycle documentation, GSD UI agent mappings, Pack config defaults, optional source-policy declarations, Playwright/Vercel/GSD Browser detection, doctor frontend reporting, and phase 8 tests.
-- Out of scope: real external Vercel/Anthropic/Playwright installation, real GSD install, GSD vendoring/forking, defaulting legacy init to GSD, stack Pack installation, full Pack uninstall command, and parallel write subagents.
+- In scope: Python/FastAPI, RAG Python, and Java/Spring Pack completion; fixed ECC upstream source declaration; component-level stack filtering; project Skill frontmatter content versions; stack-aware GSD agent mappings; bundled offline fallback checks; detector/plan tests; and phase 9 documentation.
+- Out of scope: real external source download/install wiring, real GSD install, GSD vendoring/forking, defaulting legacy init to GSD, full Pack install/update/remove command, and parallel write subagents.
 
 ## Baseline
 - Test command: `python -m pytest`
@@ -85,6 +85,16 @@
 - [x] Added Pack `gsd_config_defaults` merging through `sync-gsd` while preserving user explicit values.
 - [x] Added doctor frontend checks for frontend project, Playwright, Vercel, and GSD Browser detection.
 - [x] Added phase 8 tests for React selection, non-frontend exclusion, config defaults, UI agent injection, doctor detection, source policy declarations, and skill workflow-boundary checks.
+- [x] Added fixed `ecc-upstream-pinned` source declaration for `affaan-m/ECC` at commit `81af40761939056ab3dc54732fd4f562a27309d0`.
+- [x] Added component-level `stack_conditions` to Pack components and resolver filtering.
+- [x] Changed Pack stack selection to include a Pack when any declared stack condition is detected, while component filtering keeps installs precise.
+- [x] Added stack-aware GSD agent skill injection so non-detected components are not injected or warned about.
+- [x] Added `researcher` role mapping to `gsd-phase-researcher`.
+- [x] Expanded Python/FastAPI, RAG Python, and Java/Spring GSD agent mappings for planner/executor/reviewer/verifier/researcher roles as appropriate.
+- [x] Added `source_id` and `content_version` metadata to all project Skill frontmatter.
+- [x] Added tests ensuring project Skills do not duplicate GSD lifecycle commands.
+- [x] Added tests for independent Python/FastAPI, LangChain/LangGraph, and Java/Spring component filtering.
+- [x] Added tests for bundled offline stack Skill resources and fixed ECC source verification.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -182,6 +192,21 @@
 - Evidence: Phase 8 requires GSD UI config defaults and user config protection.
 - Consequence: `frontend-essential` can add UI defaults and lifecycle commands without turning user-disabled `ui_review` or `review_enabled` back on.
 
+- ID: D-2026-07-04-10
+- Decision: Pin ECC upstream as a source declaration while continuing to use bundled stack Skill fallbacks in ordinary tests and previews.
+- Evidence: Phase 9 requires fixed ECC source and offline fallback, but source installation wiring is a later phase.
+- Consequence: `sources verify` can prove the ECC ref is immutable, and `plan` remains deterministic offline.
+
+- ID: D-2026-07-04-11
+- Decision: Use component-level stack filtering instead of splitting every stack into separate user-facing Pack names.
+- Evidence: Phase 9 requires Java without Spring and LangChain without LangGraph to avoid unrelated Skill installation while preserving the planned Pack names.
+- Consequence: `python-fastapi`, `rag-python`, and `java-spring` remain stable Pack IDs, but only matching components and GSD bindings are emitted.
+
+- ID: D-2026-07-04-12
+- Decision: Treat Skill frontmatter `content_version` as the stack Skill content version for phase 9.
+- Evidence: The phase requires Skill content versioning and frontmatter tests.
+- Consequence: Bundled Skill updates can be detected and tested without introducing a separate manifest schema yet.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -225,17 +250,22 @@
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `72 passed` |
 | `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 8 implementation |
 | `git diff --check` | Passed | exit code 0 after phase 8; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_stack_packs.py tests\test_packs.py tests\test_gsd_bridge.py tests\test_core_models.py tests\test_sources.py tests\test_detect.py` | Passed | `34 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `80 passed` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 9 implementation |
+| `git diff --check` | Passed | exit code 0 after phase 9; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7.
 - `DEVELOPMENT_PLAN_CODEX.md` was present as an untracked root file at start and remains part of the worktree state.
-- The new v2 model, registry, transaction, source, workflow, config bridge, migration, and frontend Pack layers are not yet combined into a single full GSD default install/update/remove flow.
+- The new v2 model, registry, transaction, source, workflow, config bridge, migration, frontend Pack, and stack Pack layers are not yet combined into a single full GSD default install/update/remove flow.
 - Legacy `rollback_backup` still performs backup-level rollback; partial rollback protection currently lives in `Transaction.rollback` for future transaction-managed operations.
 - `sources verify` does not prove remote archive availability; network E2E remains a later integration/release concern.
 - `workflow status` can fail on machines without Node.js 18+/npm/npx; this is reported as a local environment check, not a code failure.
 - `sync-gsd` does not validate global Skill symlink escapes beyond requiring `SKILL.md` existence; trusted global roots remain a future hardening item.
 - If legacy workflow skills were modified by the user, migration preserves them and leaves manual cleanup for the report-guided review path.
 - Frontend Vercel, Anthropic, Playwright, and GSD Browser integrations are declaration/detection surfaces only; real installs and network E2E remain future release work.
+- Fixed ECC source declaration is verified for immutability, but real archive retrieval and component projection remain future source integration work.
 
 ## Next permitted batch
-- Continue with phase 9 only after this phase 8 batch passes full verification, diff review, commit, and push.
+- Continue with phase 10 only after this phase 9 batch passes full verification, diff review, commit, and push.

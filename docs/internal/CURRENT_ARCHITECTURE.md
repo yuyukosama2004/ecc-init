@@ -77,6 +77,7 @@ This inventory is based on the existing `yuyukosama2004/ecc-init` repository. It
     ├── test_migration.py
     ├── test_packs.py
     ├── test_sources.py
+    ├── test_stack_packs.py
     ├── test_workflows.py
     ├── test_gsd_bridge.py
     ├── test_ownership.py
@@ -116,6 +117,7 @@ Note: the worktree already had tracked `LICENSE` deleted before this implementat
 - Phase 6 adds a GSD config bridge for hard-enforced config defaults, advisory-only policy reporting, and agent_skills injection. It is only used by `sync-gsd` and doctor/status style reporting.
 - Phase 7 adds legacy v1 detection and migration. Clean v1 installs can be migrated to schema v2, deprecated workflow skills and managed workflow sections are removed, user-modified legacy skills are preserved, and rollback can restore the v1 state.
 - Phase 8 expands `frontend-essential` into a React-focused Pack with UI UX Pro Max, Vercel, Playwright-quality, frontend lifecycle documentation, optional source-policy declarations, GSD UI agent mappings, and frontend doctor checks.
+- Phase 9 completes stack Pack foundations for Python/FastAPI, RAG Python, and Java/Spring. Pack components now have stack-level filters, ECC upstream is pinned to a fixed commit declaration, project Skill frontmatter includes content versions, and GSD agent injection skips components for stacks that were not detected.
 
 ## Current Install Flow
 
@@ -146,13 +148,14 @@ Note: the worktree already had tracked `LICENSE` deleted before this implementat
 - GSD bridge tests cover default-only merge, explicit value preservation, agent_skills dedupe, missing Skill protection, malformed JSON safety, Pack cleanup, path traversal rejection, and CLI dry-run.
 - Migration tests cover dry-run no-write behavior, clean v1 migration, user-modified legacy skill preservation, repeatability, operation-id rollback, init migration hints, and CLI JSON output.
 - Frontend tests cover React Pack selection, non-frontend exclusion, GSD UI config defaults, UI agent injection, doctor frontend tool detection, optional source-policy declarations, and skill content boundaries.
+- Stack Pack tests cover fixed ECC source declaration, project Skill frontmatter versioning, bundled offline resources, independent Python/FastAPI/RAG/Java/Spring component filtering, and stack-aware GSD agent injection.
 
 ## Differences From The Development Plan
 
 - GSD Core is not installed, vendored, forked, or modified.
 - The runtime default remains the legacy 0.1 initializer; GSD is not yet the workflow authority.
 - Pack Registry, local resolver, Transaction skeleton, ownership helpers, operation receipts, Source Provider foundations, Source Lock store, GSD Adapter foundation, GSD config bridge, and legacy v1 migration now exist.
-- Full source integration, full transaction integration into legacy init, real GSD installation, stack Pack installation, and release CI remain later phases.
+- Full source integration, full transaction integration into legacy init, real GSD installation, runtime Pack installation, and release CI remain later phases.
 - Legacy global workflow skills (`task-planning`, `verification-loop`, `dev-retrospective`) are still installed by the legacy init path until migration is applied.
 - Legacy network sync still targets selected `affaan-m/ECC` release/raw files.
 - `StateStore` and v2 models exist as foundations; phase 7 migration writes v2 migration state, but `initialize_project` still writes legacy v1 state.
@@ -162,3 +165,4 @@ Note: the worktree already had tracked `LICENSE` deleted before this implementat
 - `GsdWorkflowAdapter` plans pinned commands for `@opengsd/gsd-core@1.6.1`. Tests use FakeRunner and never invoke real `npx`.
 - `sync-gsd` writes only when `.planning/config.json` already exists and `--dry-run` is not set. GSD-uninitialized projects receive a non-failing report.
 - `frontend-essential` is selected for React projects by the declarative plan. It does not install external Vercel, Anthropic, Playwright, or browser tools; those sources and tools are declaration/detection surfaces in this phase.
+- Stack Packs are selected by detected evidence and filtered per component. `plan` can preview exact stack Skill files, and `sync-gsd` can inject matching Skill bindings when the Skill files already exist.

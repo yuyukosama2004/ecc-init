@@ -3,6 +3,8 @@ name: typescript-patterns
 description: 当前任务涉及 TypeScript 类型、Node.js 或前端业务代码时使用。强调边界校验、窄类型和项目现有配置。
 metadata:
   origin: ecc-init-custom
+  source_id: bundled
+  content_version: 1
 ---
 
 # TypeScript 项目规范

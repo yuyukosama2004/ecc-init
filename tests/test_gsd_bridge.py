@@ -46,6 +46,7 @@ def test_sync_gsd_config_preserves_explicit_values_and_adds_agent_skills(tmp_pat
     project = tmp_path / "demo"
     config = project / ".planning" / "config.json"
     config.parent.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n', encoding="utf-8")
     config.write_text(
         json.dumps(
             {
@@ -100,13 +101,14 @@ def test_missing_deleted_skill_is_skipped(tmp_path: Path, monkeypatch) -> None:
     project = tmp_path / "demo"
     (project / ".planning").mkdir(parents=True)
     (project / ".planning" / "config.json").write_text("{}", encoding="utf-8")
+    (project / "pyproject.toml").write_text('[project]\ndependencies = ["pytest"]\n', encoding="utf-8")
     _write_skill(project / ".claude" / "skills" / "python-patterns")
     monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
 
     report = sync_gsd_config(project, packs=["project-baseline", "python-fastapi"])
 
     assert report.after["agent_skills"]["gsd-executor"] == [".claude/skills/python-patterns"]
-    assert any("fastapi-patterns" in warning for warning in report.warnings)
+    assert not any("fastapi-patterns" in warning for warning in report.warnings)
 
 
 def test_remove_pack_agent_skills_only_removes_pack_entries() -> None:

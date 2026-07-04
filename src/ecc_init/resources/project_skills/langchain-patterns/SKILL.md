@@ -3,6 +3,8 @@ name: langchain-patterns
 description: 当前任务涉及 LangChain 的模型、Prompt、Runnable、Retriever、Tool、Memory、RAG 或流式输出时使用。
 metadata:
   origin: ecc-init-custom
+  source_id: bundled
+  content_version: 1
 ---
 
 # LangChain 项目规范

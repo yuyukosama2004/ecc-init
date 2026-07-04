@@ -15,6 +15,19 @@
       "executable_surface": []
     },
     {
+      "source_id": "ecc-upstream-pinned",
+      "kind": "github_archive",
+      "repository": "https://github.com/affaan-m/ECC",
+      "package": null,
+      "version": "81af40761939056ab3dc54732fd4f562a27309d0",
+      "commit": "81af40761939056ab3dc54732fd4f562a27309d0",
+      "path": "skills",
+      "license_id": null,
+      "license_path": null,
+      "integrity": null,
+      "executable_surface": []
+    },
+    {
       "source_id": "gsd-core",
       "kind": "npm",
       "repository": "https://github.com/open-gsd/gsd-core",
@@ -139,6 +152,7 @@
       "target_subdir": ".claude/skills/python-patterns/SKILL.md",
       "projection_include": ["project_skills/python-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["python"],
       "required": true
     },
     {
@@ -149,6 +163,7 @@
       "target_subdir": ".claude/skills/fastapi-patterns/SKILL.md",
       "projection_include": ["project_skills/fastapi-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["fastapi"],
       "required": true
     },
     {
@@ -159,6 +174,7 @@
       "target_subdir": ".claude/skills/langchain-patterns/SKILL.md",
       "projection_include": ["project_skills/langchain-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["langchain"],
       "required": true
     },
     {
@@ -169,6 +185,7 @@
       "target_subdir": ".claude/skills/langgraph-patterns/SKILL.md",
       "projection_include": ["project_skills/langgraph-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["langgraph"],
       "required": true
     },
     {
@@ -179,6 +196,7 @@
       "target_subdir": ".claude/skills/java-patterns/SKILL.md",
       "projection_include": ["project_skills/java-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["java"],
       "required": true
     },
     {
@@ -189,6 +207,7 @@
       "target_subdir": ".claude/skills/springboot-patterns/SKILL.md",
       "projection_include": ["project_skills/springboot-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["spring-boot"],
       "required": true
     },
     {
@@ -199,6 +218,7 @@
       "target_subdir": ".claude/skills/typescript-patterns/SKILL.md",
       "projection_include": ["project_skills/typescript-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["typescript"],
       "required": true
     },
     {
@@ -209,6 +229,7 @@
       "target_subdir": ".claude/skills/react-patterns/SKILL.md",
       "projection_include": ["project_skills/react-patterns/SKILL.md"],
       "projection_exclude": [],
+      "stack_conditions": ["react"],
       "required": true
     },
     {
@@ -288,8 +309,10 @@
       "conflicts": [],
       "stack_conditions": ["python", "fastapi"],
       "gsd_agent_skills": {
+        "planner": ["python-patterns", "fastapi-patterns"],
         "executor": ["python-patterns", "fastapi-patterns"],
-        "reviewer": ["python-patterns", "fastapi-patterns"]
+        "reviewer": ["python-patterns", "fastapi-patterns"],
+        "verifier": ["python-patterns", "fastapi-patterns"]
       },
       "gsd_config_defaults": {}
     },
@@ -302,6 +325,8 @@
       "conflicts": [],
       "stack_conditions": ["langchain", "langgraph"],
       "gsd_agent_skills": {
+        "researcher": ["langchain-patterns", "langgraph-patterns"],
+        "planner": ["langchain-patterns", "langgraph-patterns"],
         "executor": ["langchain-patterns", "langgraph-patterns"],
         "reviewer": ["langchain-patterns", "langgraph-patterns"]
       },
@@ -316,6 +341,7 @@
       "conflicts": [],
       "stack_conditions": ["java", "spring-boot"],
       "gsd_agent_skills": {
+        "planner": ["java-patterns", "springboot-patterns"],
         "executor": ["java-patterns", "springboot-patterns"],
         "reviewer": ["java-patterns", "springboot-patterns"]
       },

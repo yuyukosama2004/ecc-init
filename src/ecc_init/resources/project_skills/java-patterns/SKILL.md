@@ -3,6 +3,8 @@ name: java-patterns
 description: 当前任务涉及 Java 代码、领域模型、异常、集合、并发或测试时使用。
 metadata:
   origin: ecc-init-fallback
+  source_id: ecc-upstream-pinned
+  content_version: 1
 ---
 
 # Java 项目规范

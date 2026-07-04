@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ..detect import detect_project
 from ..errors import ConfigError
 from ..paths import AppPaths
 from ..util import write_json_atomic
@@ -18,6 +19,7 @@ AGENT_TYPE_MAP = {
     "reviewer": "gsd-code-reviewer",
     "security-reviewer": "gsd-code-reviewer",
     "explorer": "gsd-codebase-mapper",
+    "researcher": "gsd-phase-researcher",
     "planner": "gsd-planner",
     "verifier": "gsd-verifier",
 }
@@ -177,6 +179,13 @@ def _skill_entry_for_name(name: str, registry: Registry) -> tuple[str, str]:
     return f".claude/skills/{name}", "project"
 
 
+def _skill_component_for_name(name: str, registry: Registry):
+    for component in registry.components.values():
+        if component.install_name == name:
+            return component
+    return None
+
+
 def _entry_exists(paths: AppPaths, entry: str, scope: str) -> bool:
     if scope == "global" and entry.startswith("global:"):
         name = entry.removeprefix("global:")
@@ -195,11 +204,17 @@ def pack_agent_skill_additions(
 ) -> tuple[dict[str, list[str]], tuple[str, ...]]:
     additions: dict[str, list[str]] = {}
     warnings: list[str] = []
+    detected_stacks = set(detect_project(paths.project_root).stacks)
     for pack_id in packs:
         pack = registry.packs[pack_id]
         for role, skill_names in pack.gsd_agent_skills.items():
             agent_type = AGENT_TYPE_MAP.get(role, role if role.startswith("gsd-") else f"gsd-{role}")
             for skill_name in skill_names:
+                component = _skill_component_for_name(skill_name, registry)
+                if component and component.stack_conditions and not all(
+                    stack in detected_stacks for stack in component.stack_conditions
+                ):
+                    continue
                 entry, scope = _skill_entry_for_name(skill_name, registry)
                 if not _entry_exists(paths, entry, scope):
                     warnings.append(f"missing SKILL.md for {entry}; skipped {agent_type}")

@@ -1,6 +1,10 @@
 ---
 name: playwright-quality
 description: Browser-based frontend verification guidance using Playwright-style checks and screenshot review.
+metadata:
+  origin: ecc-init-custom
+  source_id: bundled
+  content_version: 1
 ---
 
 # Playwright Quality

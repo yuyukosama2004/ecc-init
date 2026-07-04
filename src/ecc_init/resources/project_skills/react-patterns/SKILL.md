@@ -3,6 +3,8 @@ name: react-patterns
 description: 当前任务涉及 React 组件、Hooks、状态、表单、请求、渲染性能或组件测试时使用。
 metadata:
   origin: ecc-init-fallback
+  source_id: ecc-upstream-pinned
+  content_version: 1
 ---
 
 # React 项目规范

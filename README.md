@@ -38,6 +38,12 @@ React projects are selected for the declarative `frontend-essential` Pack. The P
 
 `ecc-init doctor` reports frontend project, Playwright, Vercel, and GSD Browser detection status. These checks are informational and do not install third-party tools.
 
+## Stack Packs
+
+The declarative Pack registry includes Python/FastAPI, RAG Python, and Java/Spring stack Packs. Components are filtered by detected stack evidence, so a plain Python project receives Python guidance without FastAPI, a LangChain-only project receives LangChain guidance without LangGraph, and a Java-only project receives Java guidance without Spring Boot.
+
+Project stack skills include frontmatter metadata with `source_id` and `content_version`. ECC-derived source policy is pinned to a fixed `affaan-m/ECC` commit in the registry, while bundled fallback resources keep offline plan generation deterministic.
+
 ## 全局 Skill
 
 安装到 `~/.claude/skills/`：

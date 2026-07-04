@@ -3,6 +3,8 @@ name: springboot-patterns
 description: 当前任务涉及 Spring Boot Controller、Service、Repository、Security、事务、配置或测试时使用。
 metadata:
   origin: ecc-init-fallback
+  source_id: ecc-upstream-pinned
+  content_version: 1
 ---
 
 # Spring Boot 项目规范

@@ -1,6 +1,10 @@
 ---
 name: ui-ux-pro-max
 description: Product-grade frontend design, interaction, accessibility, and visual QA guidance for React interfaces.
+metadata:
+  origin: ecc-init-custom
+  source_id: bundled
+  content_version: 1
 ---
 
 # UI UX Pro Max
