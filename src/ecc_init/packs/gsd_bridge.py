@@ -232,14 +232,31 @@ def pack_config_defaults(registry: Registry, packs: list[str]) -> dict[str, Any]
     return defaults
 
 
-def remove_pack_agent_skills(config: dict[str, Any], registry: Registry, pack_id: str) -> dict[str, Any]:
+def _pack_agent_skill_entries(registry: Registry, pack_id: str) -> set[str]:
     if pack_id not in registry.packs:
         raise ConfigError(f"unknown pack: {pack_id}")
-    remove_entries: set[str] = set()
+    entries: set[str] = set()
     for skill_names in registry.packs[pack_id].gsd_agent_skills.values():
         for skill_name in skill_names:
             entry, _scope = _skill_entry_for_name(skill_name, registry)
-            remove_entries.add(entry)
+            entries.add(entry)
+    return entries
+
+
+def remove_pack_agent_skills(
+    config: dict[str, Any],
+    registry: Registry,
+    pack_id: str,
+    *,
+    preserve_shared: bool = True,
+) -> dict[str, Any]:
+    remove_entries = _pack_agent_skill_entries(registry, pack_id)
+    if preserve_shared:
+        shared_entries: set[str] = set()
+        for other_pack_id in registry.packs:
+            if other_pack_id != pack_id:
+                shared_entries.update(_pack_agent_skill_entries(registry, other_pack_id))
+        remove_entries -= shared_entries
     updated = deepcopy(config)
     skills = updated.get("agent_skills")
     if not isinstance(skills, dict):

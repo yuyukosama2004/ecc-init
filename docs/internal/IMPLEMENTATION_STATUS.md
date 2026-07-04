@@ -1,14 +1,14 @@
 # Implementation Status
 
 ## Current phase
-- Phase: 9 Stack Packs
-- Batch: 2026-07-04 continuation after phase 8 batch
+- Phase: 10 CLI, Update, Remove, and Doctor completion
+- Batch: 2026-07-04 continuation after phase 9 batch
 - Branch: main
 - Started: 2026-07-03 Asia/Shanghai
 
 ## Scope
-- In scope: Python/FastAPI, RAG Python, and Java/Spring Pack completion; fixed ECC upstream source declaration; component-level stack filtering; project Skill frontmatter content versions; stack-aware GSD agent mappings; bundled offline fallback checks; detector/plan tests; and phase 9 documentation.
-- Out of scope: real external source download/install wiring, real GSD install, GSD vendoring/forking, defaulting legacy init to GSD, full Pack install/update/remove command, and parallel write subagents.
+- In scope: complete lifecycle CLI surfaces; `update --check`; source/workflow/Pack update previews; safe Pack/GSD binding removal; JSON output for lifecycle, status, doctor, rollback, and init reports; validate-only `apply`; dry-run defaults; `--yes` guarded local writes; debug traceback behavior; CI-friendly exit codes; PowerShell lifecycle examples; and phase 10 tests.
+- Out of scope: phase 11 CI/release workflows, network E2E, unpinned installers, deleting user-modified Skill files, uninstalling or modifying GSD Core internals, vendoring/forking GSD, and full install-plan apply execution.
 
 ## Baseline
 - Test command: `python -m pytest`
@@ -95,6 +95,15 @@
 - [x] Added tests ensuring project Skills do not duplicate GSD lifecycle commands.
 - [x] Added tests for independent Python/FastAPI, LangChain/LangGraph, and Java/Spring component filtering.
 - [x] Added tests for bundled offline stack Skill resources and fixed ECC source verification.
+- [x] Reworked `ecc-init update` from a legacy init alias into a lifecycle update command with `--check`, `--dry-run`, `--yes`, scoped source/workflow/Pack previews, JSON output, conflict reporting, and exit-code mapping.
+- [x] Added `ecc-init remove` with dry-run-by-default behavior, `--yes` guarded writes, `--pack`, `--workflow`, `--all`, JSON output, backups, operation receipts, and user-file-preserving GSD config cleanup.
+- [x] Added validate-only `ecc-init apply` help and JSON output for plan validation without file writes.
+- [x] Added JSON output for `init`, `status`, `doctor`, and `rollback`.
+- [x] Added global `--debug` traceback behavior while keeping stack traces hidden by default.
+- [x] Added CI-friendly doctor/update exit code behavior for FAIL/manual-action states.
+- [x] Added safer Pack agent skill removal so shared Pack bindings are preserved by default and only all-pack removal clears shared registry-managed entries.
+- [x] Added PowerShell lifecycle examples for update/remove/doctor and documented that remove does not delete Skill files or uninstall GSD Core in this phase.
+- [x] Added phase 10 tests for lifecycle JSON, dry-run no-write behavior, `--yes` writes with receipts, help coverage, debug errors, and shared-binding preservation.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -207,6 +216,26 @@
 - Evidence: The phase requires Skill content versioning and frontmatter tests.
 - Consequence: Bundled Skill updates can be detected and tested without introducing a separate manifest schema yet.
 
+- ID: D-2026-07-04-13
+- Decision: Make lifecycle update/remove commands preview-first and require `--yes` before safe local writes.
+- Evidence: Phase 10 requires dry-run, update preview, safe remove, and non-interactive `--yes`.
+- Consequence: `ecc-init update` and `ecc-init remove` are machine-parseable and safe by default; `--yes` applies only bounded local config changes unless an explicitly scoped workflow update is requested.
+
+- ID: D-2026-07-04-14
+- Decision: Keep `apply` validate-only in phase 10.
+- Evidence: Full plan application spans source projection, transactions, and release hardening beyond this phase; the phase only requires CLI completion and preview surfaces.
+- Consequence: `ecc-init apply --dry-run --json` validates plan JSON, while non-dry-run apply returns a clear nonzero result instead of partially applying an install plan.
+
+- ID: D-2026-07-04-15
+- Decision: `remove` cleans GSD config bindings but never deletes Skill files or uninstalls GSD Core in phase 10.
+- Evidence: Scenario H requires preserving user-modified files and only removing owned Agent bindings.
+- Consequence: Pack removal records backups/receipts for `.planning/config.json`; user files and GSD Core remain untouched.
+
+- ID: D-2026-07-04-16
+- Decision: Preserve agent skill entries shared by other Packs unless the user requests `remove --all`.
+- Evidence: Scenario H requires retaining shared items from other Packs.
+- Consequence: Single-Pack removal is conservative and avoids breaking other Pack bindings.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -254,6 +283,10 @@
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `80 passed` |
 | `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 9 implementation |
 | `git diff --check` | Passed | exit code 0 after phase 9; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_lifecycle_cli.py tests\test_cli.py tests\test_gsd_bridge.py tests\test_app.py` | Passed | `47 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `102 passed` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 10 implementation |
+| `git diff --check` | Passed | exit code 0 after phase 10; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7.
@@ -266,6 +299,9 @@
 - If legacy workflow skills were modified by the user, migration preserves them and leaves manual cleanup for the report-guided review path.
 - Frontend Vercel, Anthropic, Playwright, and GSD Browser integrations are declaration/detection surfaces only; real installs and network E2E remain future release work.
 - Fixed ECC source declaration is verified for immutability, but real archive retrieval and component projection remain future source integration work.
+- `ecc-init apply` is validate-only in phase 10; full install-plan application remains future work.
+- `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in phase 10.
+- `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
 ## Next permitted batch
-- Continue with phase 10 only after this phase 9 batch passes full verification, diff review, commit, and push.
+- Continue with phase 11 only after this phase 10 batch passes full verification, diff review, commit, and push.

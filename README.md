@@ -105,11 +105,35 @@ ecc-init sync-gsd --dry-run
 ecc-init migrate --dry-run
 ecc-init migrate
 ecc-init status
-ecc-init update
-ecc-init doctor
+ecc-init status --json
+ecc-init update --check --json
+ecc-init remove --pack frontend-essential
+ecc-init remove --pack frontend-essential --yes
+ecc-init doctor --json
 ecc-init rollback
 ecc-init rollback --operation-id <operation-id>
 ```
+
+### Lifecycle commands
+
+PowerShell preview commands are write-free:
+
+```powershell
+ecc-init init . --dry-run --json
+ecc-init update . --check --json
+ecc-init update . --packs --dry-run --json
+ecc-init remove . --pack frontend-essential --json
+ecc-init doctor . --json
+```
+
+Write operations require explicit non-interactive confirmation:
+
+```powershell
+ecc-init update . --packs --yes --json
+ecc-init remove . --pack frontend-essential --yes --json
+```
+
+`remove` only edits ecc-init managed GSD config bindings in this phase. It does not delete user-modified Skill files or uninstall GSD Core.
 
 ### Legacy v1 migration
 

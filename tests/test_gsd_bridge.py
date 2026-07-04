@@ -128,6 +128,69 @@ def test_remove_pack_agent_skills_only_removes_pack_entries() -> None:
     assert updated["agent_skills"]["gsd-executor"] == [".claude/skills/other"]
 
 
+def test_remove_pack_agent_skills_preserves_shared_entries_by_default() -> None:
+    registry = Registry(
+        sources={},
+        workflows={},
+        components={
+            "shared": ComponentSpec(
+                component_id="shared",
+                source_id="bundled",
+                install_name="shared-skill",
+                target_scope="project",
+                target_subdir=".claude/skills/shared-skill/SKILL.md",
+            ),
+            "one-only": ComponentSpec(
+                component_id="one-only",
+                source_id="bundled",
+                install_name="one-only",
+                target_scope="project",
+                target_subdir=".claude/skills/one-only/SKILL.md",
+            ),
+            "two-only": ComponentSpec(
+                component_id="two-only",
+                source_id="bundled",
+                install_name="two-only",
+                target_scope="project",
+                target_subdir=".claude/skills/two-only/SKILL.md",
+            ),
+        },
+        packs={
+            "one": PackSpec(
+                pack_id="one",
+                version=1,
+                description="",
+                gsd_agent_skills={"executor": ("shared-skill", "one-only")},
+            ),
+            "two": PackSpec(
+                pack_id="two",
+                version=1,
+                description="",
+                gsd_agent_skills={"executor": ("shared-skill", "two-only")},
+            ),
+        },
+        profiles={},
+    )
+    config = {
+        "agent_skills": {
+            "gsd-executor": [
+                ".claude/skills/shared-skill",
+                ".claude/skills/one-only",
+                ".claude/skills/two-only",
+            ]
+        }
+    }
+
+    updated = remove_pack_agent_skills(config, registry, "one")
+    remove_all_style = remove_pack_agent_skills(config, registry, "one", preserve_shared=False)
+
+    assert updated["agent_skills"]["gsd-executor"] == [
+        ".claude/skills/shared-skill",
+        ".claude/skills/two-only",
+    ]
+    assert remove_all_style["agent_skills"]["gsd-executor"] == [".claude/skills/two-only"]
+
+
 def test_agent_skill_path_traversal_is_rejected(tmp_path: Path) -> None:
     registry = Registry(
         sources={},

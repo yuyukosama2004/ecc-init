@@ -13,6 +13,7 @@
 - Added legacy v1 migration planning and apply support with `ecc-init migrate --dry-run`, migration reports, operation receipts, rollback support, user-modified legacy skill preservation, and init-time migration hints.
 - Expanded `frontend-essential` with UI UX Pro Max, Vercel, Playwright-quality, frontend lifecycle documentation, GSD UI agent mappings, frontend GSD config defaults, optional source-policy declarations, and doctor frontend tool detection.
 - Completed stack Pack foundations for Python/FastAPI, RAG Python, and Java/Spring with component-level stack filtering, pinned ECC upstream source declaration, Skill content version metadata, bundled offline fallback checks, and GSD agent mapping tests.
+- Added phase 10 lifecycle CLI surfaces: `update --check`, JSON output for lifecycle/status/doctor/rollback paths, validate-only `apply`, safe `remove`, default dry-run previews, `--yes` guarded writes, CI/debug error behavior, and PowerShell examples.
 
 ## 0.1.0 Alpha
 

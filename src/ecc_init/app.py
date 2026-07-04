@@ -20,11 +20,14 @@ from .frontend import frontend_doctor_checks
 from .merge import InstallResult, install_managed_section, install_whole_file
 from .migration import detect_legacy_v1
 from .paths import AppPaths
-from .packs.gsd_bridge import POLICY_PROFILES
+from .packs import build_registry_install_plan, load_registry
+from .packs.gsd_bridge import POLICY_PROFILES, build_gsd_config, remove_pack_agent_skills
 from .project import render_project_overview, render_project_section, structure_fingerprint
 from .resources import read_manifest, read_resource_text
+from .sources import verify_registry_sources
 from .sync import fetch_upstream_skill, resolve_stable_ref
 from .util import human_bool, load_json, now_iso, read_text, sha256_text, write_json_atomic, write_text_atomic
+from .workflows import GsdWorkflowAdapter
 
 
 GLOBAL_START = "<!-- ecc-init:start global -->"
@@ -45,6 +48,196 @@ class RunReport:
     @property
     def conflicts(self) -> list[InstallResult]:
         return [result for result in self.results if result.status in {"conflict", "preserved"}]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "project_root": str(self.project_root),
+            "detected_stacks": list(self.detection.stacks),
+            "detection_evidence": self.detection.evidence,
+            "results": [
+                {
+                    "path": str(result.path),
+                    "status": result.status,
+                    "message": result.message,
+                }
+                for result in self.results
+            ],
+            "warnings": list(self.warnings),
+            "backup_id": self.backup_id,
+            "upstream_ref": self.upstream_ref,
+            "conflicts": [
+                {
+                    "path": str(result.path),
+                    "status": result.status,
+                    "message": result.message,
+                }
+                for result in self.conflicts
+            ],
+        }
+
+
+def _planned_command_to_dict(command) -> dict[str, Any]:
+    return {
+        "args": list(command.args),
+        "description": command.description,
+        "dry_run": command.dry_run,
+    }
+
+
+def _environment_check_to_dict(check) -> dict[str, Any]:
+    return {
+        "check_id": check.check_id,
+        "ok": check.ok,
+        "message": check.message,
+        "detail": check.detail,
+    }
+
+
+def _command_result_to_dict(result) -> dict[str, Any]:
+    return {
+        "args": list(result.args),
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
+
+
+def _workflow_result_to_dict(result) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "workflow_id": result.workflow_id,
+        "status": result.status,
+        "ok": result.ok,
+        "commands": [_planned_command_to_dict(command) for command in result.commands],
+        "checks": [_environment_check_to_dict(check) for check in result.checks],
+        "logs": [_command_result_to_dict(log) for log in result.logs],
+        "warnings": list(result.warnings),
+    }
+
+
+def _status_conflicts(paths: AppPaths) -> tuple[list[str], list[str]]:
+    status = project_status(paths.project_root)
+    return list(status["conflicts"]), list(status["modified_managed_files"])
+
+
+def _read_json_object_strict(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"unable to read JSON object {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ConfigError(f"JSON file must contain an object: {path}")
+    return payload
+
+
+def _save_lifecycle_receipt(
+    paths: AppPaths,
+    *,
+    operation: str,
+    workflow_status: str,
+    packs: list[dict[str, Any]],
+    config_changes: list[dict[str, Any]],
+    backup_id: str | None,
+    result: str = "success",
+) -> str:
+    operation_id = new_operation_id(operation)
+    receipt = Receipt(
+        operation_id=operation_id,
+        created_at=now_iso(),
+        project_root=paths.project_root,
+        workflow={"id": "gsd", "status": workflow_status},
+        packs=packs,
+        config_changes=config_changes,
+        backup_id=backup_id,
+        result=result,
+    )
+    ReceiptStore(paths.operations_dir).save(receipt)
+    return operation_id
+
+
+@dataclass
+class UpdateReport:
+    project_root: Path
+    dry_run: bool
+    check: bool
+    applied: bool
+    plan: Any | None = None
+    source_checks: list[Any] = field(default_factory=list)
+    workflow_result: Any | None = None
+    config_report: Any | None = None
+    conflicts: list[str] = field(default_factory=list)
+    modified_managed_files: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    backup_id: str | None = None
+    operation_id: str | None = None
+
+    @property
+    def source_ok(self) -> bool:
+        return all(check.ok for check in self.source_checks)
+
+    @property
+    def manual_action_required(self) -> bool:
+        return bool(self.conflicts or self.modified_managed_files)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "project_root": str(self.project_root),
+            "dry_run": self.dry_run,
+            "check": self.check,
+            "applied": self.applied,
+            "install_plan": self.plan.to_dict() if self.plan else None,
+            "source_checks": [check.to_dict() for check in self.source_checks],
+            "workflow_update": _workflow_result_to_dict(self.workflow_result),
+            "pack_update": self.config_report.to_dict() if self.config_report else None,
+            "conflicts": list(self.conflicts),
+            "modified_managed_files": list(self.modified_managed_files),
+            "warnings": list(self.warnings),
+            "backup_id": self.backup_id,
+            "operation_id": self.operation_id,
+            "manual_action_required": self.manual_action_required,
+        }
+
+
+@dataclass
+class RemoveReport:
+    project_root: Path
+    dry_run: bool
+    applied: bool
+    packs: list[str] = field(default_factory=list)
+    remove_workflow: bool = False
+    remove_all: bool = False
+    config_path: Path | None = None
+    before: dict[str, Any] = field(default_factory=dict)
+    after: dict[str, Any] = field(default_factory=dict)
+    workflow_result: Any | None = None
+    warnings: list[str] = field(default_factory=list)
+    backup_id: str | None = None
+    operation_id: str | None = None
+
+    @property
+    def changed(self) -> bool:
+        return self.after != self.before
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "project_root": str(self.project_root),
+            "dry_run": self.dry_run,
+            "applied": self.applied,
+            "packs": list(self.packs),
+            "remove_workflow": self.remove_workflow,
+            "remove_all": self.remove_all,
+            "config_path": str(self.config_path) if self.config_path else None,
+            "changed": self.changed,
+            "before": self.before,
+            "after": self.after,
+            "workflow_remove": _workflow_result_to_dict(self.workflow_result),
+            "warnings": list(self.warnings),
+            "backup_id": self.backup_id,
+            "operation_id": self.operation_id,
+        }
 
 
 def _write_state_if_changed(path: Path, state: dict[str, Any], backup: BackupSession) -> None:
@@ -257,6 +450,179 @@ def initialize_project(
             "Legacy v1 workflow files were detected. Run `ecc-init migrate --dry-run` to preview the v2 migration."
         )
     return report
+
+
+def update_project(
+    project_root: Path | None = None,
+    *,
+    profile_id: str = "default",
+    include_packs: list[str] | None = None,
+    exclude_packs: list[str] | None = None,
+    update_sources: bool = False,
+    update_workflow: bool = False,
+    update_packs: bool = False,
+    source_ids: list[str] | None = None,
+    check: bool = False,
+    dry_run: bool = False,
+    yes: bool = False,
+) -> UpdateReport:
+    paths = AppPaths.build(project_root)
+    registry = load_registry()
+    include_packs = include_packs or []
+    exclude_packs = exclude_packs or []
+    source_ids = source_ids or []
+    scoped = update_sources or update_workflow or update_packs or bool(source_ids)
+    run_sources = update_sources or bool(source_ids) or not scoped
+    run_workflow = update_workflow or not scoped
+    run_packs = update_packs or bool(include_packs or exclude_packs) or not scoped
+    effective_dry_run = dry_run or check or not yes
+    warnings: list[str] = []
+    if not yes and not dry_run and not check:
+        warnings.append("No --yes supplied; update is reported as a dry-run preview.")
+
+    plan = build_registry_install_plan(
+        paths.project_root,
+        profile_id=profile_id,
+        include_packs=include_packs,
+        exclude_packs=exclude_packs,
+    )
+    source_checks = []
+    if run_sources:
+        unknown_sources = sorted(set(source_ids) - set(registry.sources))
+        if unknown_sources:
+            raise ConfigError(f"unknown source: {', '.join(unknown_sources)}")
+        source_checks = verify_registry_sources(registry)
+        if source_ids:
+            allowed_prefixes = tuple(f"source:{source_id}:" for source_id in source_ids)
+            source_checks = [check for check in source_checks if check.check_id.startswith(allowed_prefixes)]
+        warnings.append("Source update is preview-only in this phase; no network fetch was executed.")
+
+    workflow_result = None
+    if run_workflow:
+        workflow_result = GsdWorkflowAdapter().update(paths, dry_run=effective_dry_run)
+
+    config_report = None
+    backup_id = None
+    operation_id = None
+    if run_packs:
+        config_report = build_gsd_config(paths.project_root, profile_id=profile_id, packs=plan.packs)
+        if not config_report.initialized:
+            warnings.append("GSD config is not initialized; Pack update is preview-only.")
+        if config_report.initialized and config_report.changed and not effective_dry_run:
+            backup = BackupSession(paths.backups_dir, paths.project_root)
+            backup.record_before_change(config_report.config_path)
+            write_json_atomic(config_report.config_path, config_report.after)
+            backup_id = backup.finish()
+            operation_id = _save_lifecycle_receipt(
+                paths,
+                operation="update",
+                workflow_status=workflow_result.status if workflow_result else "config-updated",
+                packs=[{"pack_id": pack_id, "action": "update"} for pack_id in plan.packs],
+                config_changes=[
+                    {
+                        "path": str(config_report.config_path),
+                        "action": "update-gsd-config",
+                        "before": config_report.before,
+                        "after": config_report.after,
+                    }
+                ],
+                backup_id=backup_id,
+            )
+
+    conflicts, modified_managed_files = _status_conflicts(paths)
+    return UpdateReport(
+        project_root=paths.project_root,
+        dry_run=effective_dry_run,
+        check=check,
+        applied=not effective_dry_run,
+        plan=plan,
+        source_checks=source_checks,
+        workflow_result=workflow_result,
+        config_report=config_report,
+        conflicts=conflicts,
+        modified_managed_files=modified_managed_files,
+        warnings=warnings,
+        backup_id=backup_id,
+        operation_id=operation_id,
+    )
+
+
+def remove_project(
+    project_root: Path | None = None,
+    *,
+    pack_ids: list[str] | None = None,
+    workflow: bool = False,
+    all_: bool = False,
+    dry_run: bool = False,
+    yes: bool = False,
+) -> RemoveReport:
+    paths = AppPaths.build(project_root)
+    registry = load_registry()
+    pack_ids = list(dict.fromkeys(pack_ids or []))
+    if all_:
+        pack_ids = sorted(registry.packs)
+        workflow = True
+    if not pack_ids and not workflow:
+        raise ConfigError("remove requires --pack, --workflow, or --all")
+    unknown_packs = sorted(set(pack_ids) - set(registry.packs))
+    if unknown_packs:
+        raise ConfigError(f"unknown pack: {', '.join(unknown_packs)}")
+
+    effective_dry_run = dry_run or not yes
+    warnings: list[str] = []
+    if not yes and not dry_run:
+        warnings.append("No --yes supplied; remove is reported as a dry-run preview.")
+
+    config_path = paths.project_root / ".planning" / "config.json"
+    before = _read_json_object_strict(config_path)
+    after = before
+    for pack_id in pack_ids:
+        after = remove_pack_agent_skills(after, registry, pack_id, preserve_shared=not all_)
+
+    workflow_result = GsdWorkflowAdapter().remove(paths, dry_run=True) if workflow else None
+    if workflow:
+        warnings.append("Workflow removal is strategy-only in this phase; GSD Core files are not deleted.")
+    if not config_path.exists():
+        warnings.append("GSD config is not initialized; no config file will be removed or created.")
+
+    backup_id = None
+    operation_id = None
+    if config_path.exists() and after != before and not effective_dry_run:
+        backup = BackupSession(paths.backups_dir, paths.project_root)
+        backup.record_before_change(config_path)
+        write_json_atomic(config_path, after)
+        backup_id = backup.finish()
+        operation_id = _save_lifecycle_receipt(
+            paths,
+            operation="remove",
+            workflow_status="pack-bindings-removed",
+            packs=[{"pack_id": pack_id, "action": "remove-agent-bindings"} for pack_id in pack_ids],
+            config_changes=[
+                {
+                    "path": str(config_path),
+                    "action": "remove-pack-agent-bindings",
+                    "before": before,
+                    "after": after,
+                }
+            ],
+            backup_id=backup_id,
+        )
+
+    return RemoveReport(
+        project_root=paths.project_root,
+        dry_run=effective_dry_run,
+        applied=not effective_dry_run,
+        packs=pack_ids,
+        remove_workflow=workflow,
+        remove_all=all_,
+        config_path=config_path,
+        before=before,
+        after=after,
+        workflow_result=workflow_result,
+        warnings=warnings,
+        backup_id=backup_id,
+        operation_id=operation_id,
+    )
 
 
 def project_status(project_root: Path | None = None) -> dict[str, Any]:

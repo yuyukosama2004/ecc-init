@@ -32,6 +32,13 @@ def test_explicit_sync_gsd_is_preserved() -> None:
     assert _normalize_argv(["sync-gsd", "."]) == ["sync-gsd", "."]
 
 
+def test_explicit_lifecycle_commands_are_preserved() -> None:
+    assert _normalize_argv(["apply", "plan.json"]) == ["apply", "plan.json"]
+    assert _normalize_argv(["remove", "."]) == ["remove", "."]
+    assert _normalize_argv(["--debug", "update", "--check"]) == ["--debug", "update", "--check"]
+    assert _normalize_argv(["--debug", "--offline"]) == ["--debug", "init", "--offline"]
+
+
 def test_plan_json_does_not_write_project_files(tmp_path: Path, monkeypatch, capsys) -> None:
     project = tmp_path / "demo"
     project.mkdir()
