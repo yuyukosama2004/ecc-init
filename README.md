@@ -32,6 +32,12 @@
 - Java
 - Spring Boot
 
+## Frontend Pack
+
+React projects are selected for the declarative `frontend-essential` Pack. The Pack previews bundled React/TypeScript, UI UX Pro Max, Vercel, and Playwright-quality skills, writes a frontend lifecycle document in the install plan, and contributes GSD UI agent skill mappings through `ecc-init sync-gsd`.
+
+`ecc-init doctor` reports frontend project, Playwright, Vercel, and GSD Browser detection status. These checks are informational and do not install third-party tools.
+
 ## 全局 Skill
 
 安装到 `~/.claude/skills/`：

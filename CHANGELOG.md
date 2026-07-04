@@ -11,6 +11,7 @@
 - Added a GSD workflow adapter foundation with pinned `@opengsd/gsd-core@1.6.1` command planning, Node/npm checks, dry-run install/update/remove surfaces, and `ecc-init workflow status`.
 - Added a GSD config bridge with AgentPolicyProfile defaults, default-only `.planning/config.json` merge, agent skill injection, `sync-gsd`, and doctor hard/advisory reporting.
 - Added legacy v1 migration planning and apply support with `ecc-init migrate --dry-run`, migration reports, operation receipts, rollback support, user-modified legacy skill preservation, and init-time migration hints.
+- Expanded `frontend-essential` with UI UX Pro Max, Vercel, Playwright-quality, frontend lifecycle documentation, GSD UI agent mappings, frontend GSD config defaults, optional source-policy declarations, and doctor frontend tool detection.
 
 ## 0.1.0 Alpha
 

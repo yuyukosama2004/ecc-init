@@ -210,6 +210,13 @@ def pack_agent_skill_additions(
     return additions, tuple(warnings)
 
 
+def pack_config_defaults(registry: Registry, packs: list[str]) -> dict[str, Any]:
+    defaults: dict[str, Any] = {}
+    for pack_id in packs:
+        defaults = deep_merge_missing(defaults, registry.packs[pack_id].gsd_config_defaults)
+    return defaults
+
+
 def remove_pack_agent_skills(config: dict[str, Any], registry: Registry, pack_id: str) -> dict[str, Any]:
     if pack_id not in registry.packs:
         raise ConfigError(f"unknown pack: {pack_id}")
@@ -265,7 +272,8 @@ def build_gsd_config(
 
     before = _load_config(config_path) if initialized else {}
     additions, warnings = pack_agent_skill_additions(paths, registry, packs)
-    with_defaults = deep_merge_missing(before, policy.hard_config)
+    hard_config = deep_merge_missing(policy.hard_config, pack_config_defaults(registry, packs))
+    with_defaults = deep_merge_missing(before, hard_config)
     after = merge_agent_skills(with_defaults, additions)
     if not initialized:
         warnings = ("GSD config not initialized; sync report generated without writing.", *warnings)
@@ -275,7 +283,7 @@ def build_gsd_config(
         changed=after != before,
         before=before,
         after=after,
-        hard_config=policy.hard_config,
+        hard_config=hard_config,
         advisory=policy.advisory,
         warnings=warnings,
     )

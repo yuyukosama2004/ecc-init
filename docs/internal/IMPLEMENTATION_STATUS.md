@@ -1,14 +1,14 @@
 # Implementation Status
 
 ## Current phase
-- Phase: 7 Legacy v1 migration
-- Batch: 2026-07-04 continuation after phase 6 batch
+- Phase: 8 Frontend Pack
+- Batch: 2026-07-04 continuation after phase 7 batch
 - Branch: main
 - Started: 2026-07-03 Asia/Shanghai
 
 ## Scope
-- In scope: legacy v1 detection, migration plan/report, deprecated workflow section removal, deprecated workflow skill removal, user-modified legacy skill preservation, schema v2 migration state, operation receipt, rollback support, `ecc-init migrate --dry-run`, and init-time migration hint.
-- Out of scope: real GSD install, GSD vendoring/forking, defaulting legacy init to GSD, frontend/stack Pack installation, full Pack uninstall command, and parallel write subagents.
+- In scope: frontend-essential Pack expansion, UI UX Pro Max/Vercel/Playwright-quality bundled skills, React Pack selection, frontend lifecycle documentation, GSD UI agent mappings, Pack config defaults, optional source-policy declarations, Playwright/Vercel/GSD Browser detection, doctor frontend reporting, and phase 8 tests.
+- Out of scope: real external Vercel/Anthropic/Playwright installation, real GSD install, GSD vendoring/forking, defaulting legacy init to GSD, stack Pack installation, full Pack uninstall command, and parallel write subagents.
 
 ## Baseline
 - Test command: `python -m pytest`
@@ -75,6 +75,16 @@
 - [x] Added `ecc-init migrate --dry-run` / `ecc-init migrate --json`.
 - [x] Added init-time hint telling legacy v1 users to preview migration.
 - [x] Added phase 7 tests for dry-run, clean migration, user modification protection, repeatability, rollback, CLI JSON, and init warning behavior.
+- [x] Added `src/ecc_init/frontend.py` for frontend project/tool detection and lifecycle command metadata.
+- [x] Expanded `frontend-essential` to include UI UX Pro Max, Vercel, Playwright-quality, and frontend lifecycle document components.
+- [x] Added bundled frontend project skills for UI UX Pro Max, Vercel platform guidance, and Playwright-quality verification.
+- [x] Added `docs/FRONTEND_LIFECYCLE.md` template with the required frontend GSD lifecycle command display.
+- [x] Added optional source-policy declarations for Vercel and Anthropic frontend guidance without downloading or installing external content.
+- [x] Updated `frontend-essential` React stack selection so React projects receive the Pack without requiring TypeScript evidence.
+- [x] Added GSD UI agent mappings for `gsd-ui-designer`, `gsd-ui-reviewer`, executor, reviewer, and verifier roles.
+- [x] Added Pack `gsd_config_defaults` merging through `sync-gsd` while preserving user explicit values.
+- [x] Added doctor frontend checks for frontend project, Playwright, Vercel, and GSD Browser detection.
+- [x] Added phase 8 tests for React selection, non-frontend exclusion, config defaults, UI agent injection, doctor detection, source policy declarations, and skill workflow-boundary checks.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -157,6 +167,21 @@
 - Evidence: Phase 7 requires an init migration prompt, while the project still needs explicit dry-run support before writes.
 - Consequence: Existing init behavior stays compatible, and users can preview with `ecc-init migrate --dry-run` before changing workflow files.
 
+- ID: D-2026-07-04-07
+- Decision: Treat Vercel and Anthropic frontend inputs as optional source-policy declarations in phase 8.
+- Evidence: The plan requires Vercel Skills and optional Anthropic Source policy, while current source integration must remain deterministic and avoid unpinned external installs.
+- Consequence: The registry records these sources and `sources verify` reports them as declaration-only; no external content is downloaded or installed.
+
+- ID: D-2026-07-04-08
+- Decision: Keep frontend lifecycle commands in a project document instead of embedding them into frontend Skill content.
+- Evidence: Phase 8 requires lifecycle command display and also requires Skills not to duplicate the main workflow rules.
+- Consequence: `FRONTEND_LIFECYCLE.md` lists the GSD commands, while the frontend skills remain domain-specific.
+
+- ID: D-2026-07-04-09
+- Decision: `sync-gsd` merges Pack config defaults with default-only semantics.
+- Evidence: Phase 8 requires GSD UI config defaults and user config protection.
+- Consequence: `frontend-essential` can add UI defaults and lifecycle commands without turning user-disabled `ui_review` or `review_enabled` back on.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -196,16 +221,21 @@
 | `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 7 implementation |
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `66 passed` |
 | `git diff --check` | Passed | exit code 0 after phase 7; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_frontend.py tests\test_gsd_bridge.py tests\test_packs.py tests\test_app.py tests\test_sources.py` | Passed | `32 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `72 passed` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 8 implementation |
+| `git diff --check` | Passed | exit code 0 after phase 8; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7.
 - `DEVELOPMENT_PLAN_CODEX.md` was present as an untracked root file at start and remains part of the worktree state.
-- The new v2 model, registry, transaction, source, workflow, config bridge, and migration layers are not yet combined into a single full GSD default install/update/remove flow.
+- The new v2 model, registry, transaction, source, workflow, config bridge, migration, and frontend Pack layers are not yet combined into a single full GSD default install/update/remove flow.
 - Legacy `rollback_backup` still performs backup-level rollback; partial rollback protection currently lives in `Transaction.rollback` for future transaction-managed operations.
 - `sources verify` does not prove remote archive availability; network E2E remains a later integration/release concern.
 - `workflow status` can fail on machines without Node.js 18+/npm/npx; this is reported as a local environment check, not a code failure.
 - `sync-gsd` does not validate global Skill symlink escapes beyond requiring `SKILL.md` existence; trusted global roots remain a future hardening item.
 - If legacy workflow skills were modified by the user, migration preserves them and leaves manual cleanup for the report-guided review path.
+- Frontend Vercel, Anthropic, Playwright, and GSD Browser integrations are declaration/detection surfaces only; real installs and network E2E remain future release work.
 
 ## Next permitted batch
-- Continue with phase 8 only after this phase 7 batch passes full verification, diff review, commit, and push.
+- Continue with phase 9 only after this phase 8 batch passes full verification, diff review, commit, and push.

@@ -16,6 +16,7 @@ from .core.plan import new_operation_id
 from .core.receipt import ReceiptStore
 from .detect import DetectionResult, detect_project
 from .errors import ConfigError
+from .frontend import frontend_doctor_checks
 from .merge import InstallResult, install_managed_section, install_whole_file
 from .migration import detect_legacy_v1
 from .paths import AppPaths
@@ -328,6 +329,7 @@ def doctor(project_root: Path | None = None) -> list[tuple[str, bool, str]]:
         )
     )
     checks.append(("GSD advisory-only policy", True, ", ".join(sorted(default_policy.advisory))))
+    checks.extend(frontend_doctor_checks(paths.project_root))
     return checks
 
 

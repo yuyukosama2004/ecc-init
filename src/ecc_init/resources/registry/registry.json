@@ -26,6 +26,32 @@
       "license_path": null,
       "integrity": null,
       "executable_surface": []
+    },
+    {
+      "source_id": "vercel-skills",
+      "kind": "optional_policy",
+      "repository": "https://vercel.com/docs",
+      "package": null,
+      "version": "declared",
+      "commit": null,
+      "path": null,
+      "license_id": null,
+      "license_path": null,
+      "integrity": null,
+      "executable_surface": []
+    },
+    {
+      "source_id": "anthropic-frontend-policy",
+      "kind": "optional_policy",
+      "repository": "https://docs.anthropic.com/claude-code",
+      "package": null,
+      "version": "declared",
+      "commit": null,
+      "path": null,
+      "license_id": null,
+      "license_path": null,
+      "integrity": null,
+      "executable_surface": []
     }
   ],
   "workflows": [
@@ -184,6 +210,46 @@
       "projection_include": ["project_skills/react-patterns/SKILL.md"],
       "projection_exclude": [],
       "required": true
+    },
+    {
+      "component_id": "skill-ui-ux-pro-max",
+      "source_id": "bundled",
+      "install_name": "ui-ux-pro-max",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "projection_include": ["project_skills/ui-ux-pro-max/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-vercel-platform",
+      "source_id": "bundled",
+      "install_name": "vercel-platform",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/vercel-platform/SKILL.md",
+      "projection_include": ["project_skills/vercel-platform/SKILL.md"],
+      "projection_exclude": [],
+      "required": false
+    },
+    {
+      "component_id": "skill-playwright-quality",
+      "source_id": "bundled",
+      "install_name": "playwright-quality",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/playwright-quality/SKILL.md",
+      "projection_include": ["project_skills/playwright-quality/SKILL.md"],
+      "projection_exclude": [],
+      "required": false
+    },
+    {
+      "component_id": "frontend-lifecycle-doc",
+      "source_id": "bundled",
+      "install_name": "FRONTEND_LIFECYCLE.md",
+      "target_scope": "project",
+      "target_subdir": "docs/FRONTEND_LIFECYCLE.md",
+      "projection_include": ["templates/FRONTEND_LIFECYCLE.md"],
+      "projection_exclude": [],
+      "required": true
     }
   ],
   "packs": [
@@ -258,16 +324,47 @@
     {
       "pack_id": "frontend-essential",
       "version": 1,
-      "description": "TypeScript and React project skills.",
-      "components": ["skill-typescript-patterns", "skill-react-patterns"],
+      "description": "React, UI design, Vercel, and browser verification frontend skills.",
+      "components": [
+        "skill-typescript-patterns",
+        "skill-react-patterns",
+        "skill-ui-ux-pro-max",
+        "skill-vercel-platform",
+        "skill-playwright-quality",
+        "frontend-lifecycle-doc"
+      ],
       "requires": ["project-baseline"],
       "conflicts": [],
-      "stack_conditions": ["typescript", "react"],
+      "stack_conditions": ["react"],
       "gsd_agent_skills": {
-        "executor": ["typescript-patterns", "react-patterns"],
-        "reviewer": ["typescript-patterns", "react-patterns"]
+        "executor": ["typescript-patterns", "react-patterns", "vercel-platform"],
+        "reviewer": ["typescript-patterns", "react-patterns"],
+        "ui-designer": ["ui-ux-pro-max"],
+        "ui-reviewer": ["ui-ux-pro-max", "playwright-quality"],
+        "verifier": ["playwright-quality"]
       },
-      "gsd_config_defaults": {}
+      "gsd_config_defaults": {
+        "workflow": {
+          "ui_review": true
+        },
+        "ui": {
+          "review_enabled": true,
+          "visual_verification": true,
+          "lifecycle_commands": [
+            "/gsd-discuss-phase N",
+            "/gsd-ui-phase N",
+            "/gsd-plan-phase N",
+            "/gsd-execute-phase N",
+            "/gsd-verify-work N",
+            "/gsd-ui-review N"
+          ],
+          "tool_detection": {
+            "playwright": "optional",
+            "gsd_browser": "optional",
+            "vercel": "optional"
+          }
+        }
+      }
     }
   ],
   "profiles": [
