@@ -12,12 +12,24 @@
 - 更新前备份，使用三方合并保留本地修改；
 - 冲突时保留本地版本，并生成 `.ecc-upstream` 和 `.ecc-diff`。
 
-当前版本为 **0.1.0 Alpha**，适合本地试用和继续定制。
+当前版本为 **0.2.0a0 Alpha**，用于验证 GSD-first 架构、迁移路径和发布流程。
 
 ## 路线状态
 
 `0.1.x` 是 legacy 初始化器：它保留当前 Python CLI、检测、合并、备份和回滚行为。
-后续 `0.2.0 Alpha` 将渐进切换为以 GSD Core 为唯一工作流内核的架构；迁移期间不会 Fork、vendor 或直接修改 GSD。
+`0.2.0 Alpha` 默认切换为以 GSD Core 为唯一主工作流内核的架构；不会 Fork、vendor 或直接修改 GSD。
+
+## 0.2.0 Alpha Behavior
+
+`ecc-init init .` now defaults to the GSD declarative plan. It previews the selected workflow, Packs, file operations, and pinned external commands without installing legacy workflow skills.
+
+Legacy 0.1.x writes are still available for migration compatibility:
+
+```powershell
+ecc-init init . --legacy --offline
+```
+
+GSD Core is external. `ecc-init` plans the pinned official package `@opengsd/gsd-core@1.6.1`; it does not fork, vendor, or modify GSD Core.
 
 ## 支持的技术栈
 
@@ -54,6 +66,12 @@ Project stack skills include frontmatter metadata with `source_id` and `content_
 - `security-review`
 - `code-tour`
 - `dev-retrospective`
+
+These global workflow skills are installed only by the explicit legacy path:
+
+```powershell
+ecc-init init . --legacy
+```
 
 ## 安装
 
@@ -150,16 +168,18 @@ User-modified legacy skills are preserved and reported for manual review.
 离线运行：
 
 ```powershell
-ecc-init --offline
+ecc-init init . --legacy --offline
 ```
 
 完全禁用 ECC 上游同步，只使用包内模板：
 
 ```powershell
-ecc-init --no-sync
+ecc-init init . --legacy --no-sync
 ```
 
 ## 生成结构
+
+The structure below applies to `ecc-init init --legacy`. The 0.2.0a0 default `init` path previews the GSD declarative plan instead of writing these legacy files.
 
 全局：
 

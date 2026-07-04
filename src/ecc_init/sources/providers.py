@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import stat
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -62,6 +63,9 @@ def safe_extract_zip(archive_path: Path, target_dir: Path) -> None:
             name = PurePosixPath(member.filename)
             if name.is_absolute() or ".." in name.parts:
                 raise SourceError(f"unsafe archive member: {member.filename}")
+            mode = (member.external_attr >> 16) & 0o170000
+            if mode == stat.S_IFLNK:
+                raise SourceError(f"unsafe archive symlink: {member.filename}")
             _assert_inside(target_dir, target_dir / Path(*name.parts))
         archive.extractall(target_dir)
 
@@ -92,6 +96,8 @@ def project_directory(
         if PurePosixPath(pattern).is_absolute() or ".." in PurePosixPath(pattern).parts:
             raise SourceError(f"unsafe projection include: {pattern}")
         for source in source_root.glob(pattern):
+            if source.is_symlink():
+                raise SourceError(f"unsafe projection symlink: {source}")
             if not source.is_file():
                 continue
             relative = source.relative_to(source_root).as_posix()

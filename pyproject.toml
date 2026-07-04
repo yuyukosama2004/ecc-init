@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecc-init"
-version = "0.1.0"
+version = "0.2.0a0"
 description = "A lightweight Claude Code configuration initializer inspired by selected ECC patterns."
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = { text = "MIT" }
 authors = [
   { name = "ecc-init local toolkit" }
 ]

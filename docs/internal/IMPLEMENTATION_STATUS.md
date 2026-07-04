@@ -1,14 +1,14 @@
 # Implementation Status
 
 ## Current phase
-- Phase: 10 CLI, Update, Remove, and Doctor completion
-- Batch: 2026-07-04 continuation after phase 9 batch
+- Phase: 11 Security, CI, and release documentation
+- Batch: 2026-07-04 continuation after phase 10 batch
 - Branch: main
 - Started: 2026-07-03 Asia/Shanghai
 
 ## Scope
-- In scope: complete lifecycle CLI surfaces; `update --check`; source/workflow/Pack update previews; safe Pack/GSD binding removal; JSON output for lifecycle, status, doctor, rollback, and init reports; validate-only `apply`; dry-run defaults; `--yes` guarded local writes; debug traceback behavior; CI-friendly exit codes; PowerShell lifecycle examples; and phase 10 tests.
-- Out of scope: phase 11 CI/release workflows, network E2E, unpinned installers, deleting user-modified Skill files, uninstalling or modifying GSD Core internals, vendoring/forking GSD, and full install-plan apply execution.
+- In scope: 0.2.0a0 alpha versioning; GSD-first default `init`; legacy `init --legacy` compatibility; GitHub Actions OS/Python CI matrix; wheel build/install smoke; pipx install smoke; nightly network E2E kept out of ordinary CI; archive, symlink, subprocess, and package-data security tests; package source/notice/security/migration/architecture documentation; release dry-run script; and phase 11 verification evidence.
+- Out of scope: publishing a PyPI release, modifying or vendoring GSD Core, executing unpinned installers in tests, deleting user-modified Skill files, and making validate-only `apply` perform full transactional installation.
 
 ## Baseline
 - Test command: `python -m pytest`
@@ -104,6 +104,18 @@
 - [x] Added safer Pack agent skill removal so shared Pack bindings are preserved by default and only all-pack removal clears shared registry-managed entries.
 - [x] Added PowerShell lifecycle examples for update/remove/doctor and documented that remove does not delete Skill files or uninstall GSD Core in this phase.
 - [x] Added phase 10 tests for lifecycle JSON, dry-run no-write behavior, `--yes` writes with receipts, help coverage, debug errors, and shared-binding preservation.
+- [x] Bumped package and runtime version to `0.2.0a0`.
+- [x] Changed `ecc-init init` default behavior to GSD declarative plan preview and moved legacy writes behind explicit `--legacy`.
+- [x] Updated bundled source registry version to `0.2.0a0`.
+- [x] Added `.github/workflows/ci.yml` with Windows/Linux/macOS and Python 3.10/3.12 matrix, pytest, compileall, wheel build, wheel content check, wheel CLI smoke, and pipx smoke.
+- [x] Added `.github/workflows/nightly-network-e2e.yml` for opt-in pinned npm/GitHub source checks.
+- [x] Added `scripts/check_wheel_contents.py`, `scripts/cli_smoke.py`, and `scripts/release_dry_run.py`.
+- [x] Added `.gitignore` for local generated artifacts including `.claude/`, `.planning/`, cache, build, and dist directories.
+- [x] Added archive absolute-path and symlink-member rejection plus source projection symlink rejection.
+- [x] Added phase 11 tests for subprocess argument-list execution, symlink rollback safety, package data integrity, release docs/CI file presence, and version metadata consistency.
+- [x] Added `ARCHITECTURE.md`, `MIGRATION.md`, `NOTICE.md`, `SECURITY.md`, and `SOURCE_POLICY.md`.
+- [x] Added `docs/e2e/0.2.0-alpha.md` mapping acceptance scenarios to automated tests and manual smoke evidence.
+- [x] Updated README for 0.2.0a0 alpha behavior, GSD default init, legacy opt-in, update/remove/rollback demos, and source boundaries.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -236,6 +248,26 @@
 - Evidence: Scenario H requires retaining shared items from other Packs.
 - Consequence: Single-Pack removal is conservative and avoids breaking other Pack bindings.
 
+- ID: D-2026-07-04-17
+- Decision: Promote the package to `0.2.0a0` and make `ecc-init init` GSD-first by default.
+- Evidence: The Definition of Done requires GSD to be the default and only main workflow, while phase 5 allowed legacy mode only as a temporary explicit flag.
+- Consequence: Default init produces the GSD declarative plan and does not install legacy workflow skills; the old writer remains available as `ecc-init init --legacy` for migration compatibility.
+
+- ID: D-2026-07-04-18
+- Decision: Do not restore the root `LICENSE` file.
+- Evidence: The maintainer explicitly deleted `LICENSE` and stated they did not want to keep it.
+- Consequence: License/source attribution is recorded through package metadata and `NOTICE.md`; CI/package checks do not require a root `LICENSE` file.
+
+- ID: D-2026-07-04-19
+- Decision: Keep network E2E isolated to scheduled/manual CI and an opt-in environment variable.
+- Evidence: Phase 11 requires nightly network E2E, and repository safety rules require ordinary tests to remain deterministic and avoid unpinned installers.
+- Consequence: PR CI runs local tests and package smoke, explicitly ignores `tests/test_network_e2e.py`, and sets `ECC_INIT_NETWORK_E2E=0`; that network suite runs only when `ECC_INIT_NETWORK_E2E=1` in the nightly/manual workflow.
+
+- ID: D-2026-07-04-20
+- Decision: Reject source archive symlinks and source projection symlinks.
+- Evidence: Phase 11 requires symlink tests, and symlink-following could copy or expose files outside the intended source tree.
+- Consequence: `safe_extract_zip` and `project_directory` fail closed on symlink inputs.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -287,21 +319,26 @@
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `102 passed` |
 | `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 10 implementation |
 | `git diff --check` | Passed | exit code 0 after phase 10; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_security_release.py tests\test_network_e2e.py tests\test_lifecycle_cli.py tests\test_sources.py` | Passed | `36 passed, 4 skipped` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `113 passed, 4 skipped` |
+| `$env:PYTHONPATH='src'; $env:ECC_INIT_NETWORK_E2E='1'; python -m pytest tests\test_network_e2e.py` | Passed | `2 passed` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src scripts` | Passed | compiled source and release scripts after phase 11 implementation |
+| `$env:PYTHONPATH='src'; python scripts\release_dry_run.py` | Passed | created a pinned temporary build venv, built `ecc_init-0.2.0a0-py3-none-any.whl`, checked wheel contents and entry point, and ran wheel CLI smoke |
+| `%TEMP%\ecc-init-release-venv-codex\Scripts\python.exe -m pipx install . --force` with temporary `PIPX_HOME`/`PIPX_BIN_DIR` | Passed | installed `ecc-init 0.2.0a0` and `ecc-init --version` returned `ecc-init 0.2.0a0` |
+| GitHub Actions CI on pushed `main` and `v0.2.0-alpha.0` | Passed | Windows/Linux/macOS Python 3.10/3.12 matrix and pipx smoke completed successfully |
 
 ## Remaining risks
-- The tracked `LICENSE` deletion was user-intended and committed before phase 7.
-- `DEVELOPMENT_PLAN_CODEX.md` was present as an untracked root file at start and remains part of the worktree state.
-- The new v2 model, registry, transaction, source, workflow, config bridge, migration, frontend Pack, and stack Pack layers are not yet combined into a single full GSD default install/update/remove flow.
+- The tracked `LICENSE` deletion was user-intended and committed before phase 7; `NOTICE.md` and package metadata now carry the release attribution record.
 - Legacy `rollback_backup` still performs backup-level rollback; partial rollback protection currently lives in `Transaction.rollback` for future transaction-managed operations.
-- `sources verify` does not prove remote archive availability; network E2E remains a later integration/release concern.
+- `sources verify` does not prove remote archive availability during ordinary local checks; opt-in/nightly network E2E covers pinned npm and GitHub source availability.
 - `workflow status` can fail on machines without Node.js 18+/npm/npx; this is reported as a local environment check, not a code failure.
 - `sync-gsd` does not validate global Skill symlink escapes beyond requiring `SKILL.md` existence; trusted global roots remain a future hardening item.
 - If legacy workflow skills were modified by the user, migration preserves them and leaves manual cleanup for the report-guided review path.
-- Frontend Vercel, Anthropic, Playwright, and GSD Browser integrations are declaration/detection surfaces only; real installs and network E2E remain future release work.
+- Frontend Vercel, Anthropic, Playwright, and GSD Browser integrations are declaration/detection surfaces only; real third-party installs remain future integration work.
 - Fixed ECC source declaration is verified for immutability, but real archive retrieval and component projection remain future source integration work.
-- `ecc-init apply` is validate-only in phase 10; full install-plan application remains future work.
-- `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in phase 10.
+- `ecc-init apply` is validate-only in 0.2.0a0; full install-plan application remains future work.
+- `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in 0.2.0a0.
 - `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
 ## Next permitted batch
-- Continue with phase 11 only after this phase 10 batch passes full verification, diff review, commit, and push.
+- 0.2.0a0 alpha phase 11 is complete. Next work should start only from the next plan-approved post-alpha batch.

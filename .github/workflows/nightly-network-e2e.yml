@@ -1,0 +1,28 @@
+name: Nightly Network E2E
+
+on:
+  schedule:
+    - cron: "17 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  network-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test tools
+        run: python -m pip install --upgrade pip==25.1.1 pytest==8.4.1
+
+      - name: Run opt-in network E2E
+        env:
+          ECC_INIT_NETWORK_E2E: "1"
+        run: python -m pytest tests/test_network_e2e.py

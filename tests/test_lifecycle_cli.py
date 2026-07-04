@@ -1,4 +1,6 @@
+import io
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -45,6 +47,32 @@ def test_status_json_is_machine_parseable(tmp_path: Path, monkeypatch, capsys) -
     assert isinstance(payload["detected_stacks"], list)
 
 
+def test_status_json_writes_utf8_when_stdout_text_encoding_is_limited(tmp_path: Path, monkeypatch) -> None:
+    class CharmapStdout:
+        def __init__(self) -> None:
+            self.buffer = io.BytesIO()
+
+        def write(self, text: str) -> int:
+            text.encode("cp1252")
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+    project = tmp_path / "demo"
+    project.mkdir()
+    (project / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n', encoding="utf-8")
+    stream = CharmapStdout()
+    monkeypatch.setenv("ECC_INIT_HOME", str(tmp_path / "ecc-home"))
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
+    monkeypatch.setattr(sys, "stdout", stream)
+
+    assert main(["status", str(project), "--json"]) == 0
+    payload = json.loads(stream.buffer.getvalue().decode("utf-8"))
+
+    assert "测试命令" in payload["commands"]
+
+
 def test_doctor_json_uses_pass_warn_fail_statuses(tmp_path: Path, monkeypatch, capsys) -> None:
     project = tmp_path / "demo"
     project.mkdir()
@@ -86,6 +114,33 @@ def test_init_dry_run_json_example_does_not_write(tmp_path: Path, monkeypatch, c
     assert payload["workflow"] == "gsd"
     assert not (project / ".claude").exists()
     assert not (project / "docs").exists()
+
+
+def test_init_defaults_to_gsd_preview_without_legacy_writes(tmp_path: Path, monkeypatch, capsys) -> None:
+    project = tmp_path / "demo"
+    project.mkdir()
+    monkeypatch.setenv("ECC_INIT_HOME", str(tmp_path / "ecc-home"))
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
+
+    assert main(["init", str(project), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["workflow"] == "gsd"
+    assert not (project / ".claude").exists()
+    assert not (project / "CLAUDE.md").exists()
+    assert not (tmp_path / "claude-home" / "skills" / "task-planning").exists()
+
+
+def test_legacy_init_requires_explicit_flag(tmp_path: Path, monkeypatch) -> None:
+    project = tmp_path / "demo"
+    project.mkdir()
+    monkeypatch.setenv("ECC_INIT_HOME", str(tmp_path / "ecc-home"))
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
+
+    assert main(["init", str(project), "--legacy", "--offline"]) == 0
+
+    assert (project / ".claude" / "ecc-init-state.json").exists()
+    assert (tmp_path / "claude-home" / "skills" / "task-planning" / "SKILL.md").exists()
 
 
 def test_remove_pack_json_defaults_to_dry_run(tmp_path: Path, monkeypatch, capsys) -> None:

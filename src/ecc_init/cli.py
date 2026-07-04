@@ -34,6 +34,16 @@ COMMANDS = {
 GLOBAL_FLAGS = {"--debug", "--ci"}
 
 
+def _print_json(payload: object) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    stdout_buffer = getattr(sys.stdout, "buffer", None)
+    if stdout_buffer is None:
+        print(text)
+        return
+    stdout_buffer.write((text + "\n").encode("utf-8"))
+    stdout_buffer.flush()
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ecc-init",
@@ -48,6 +58,7 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("path", nargs="?", default=".")
     init.add_argument("--offline", action="store_true", help="use cached or bundled content only")
     init.add_argument("--no-sync", action="store_true", help="skip legacy ECC upstream sync")
+    init.add_argument("--legacy", action="store_true", help="run the legacy 0.1.x initializer")
     init.add_argument("--profile", default="default", help="dry-run plan profile")
     init.add_argument("--pack", action="append", default=[], help="dry-run extra Pack")
     init.add_argument("--without-pack", action="append", default=[], help="dry-run excluded Pack")
@@ -195,7 +206,7 @@ def _print_pack_list(json_output: bool) -> None:
     registry = load_registry()
     items = [pack.to_dict() for pack in registry.packs.values()]
     if json_output:
-        print(json.dumps(items, ensure_ascii=False, indent=2))
+        _print_json(items)
         return
     for pack in registry.packs.values():
         print(f"{pack.pack_id}\tv{pack.version}\t{pack.description}")
@@ -209,7 +220,7 @@ def _print_pack_show(pack_id: str, json_output: bool) -> int:
         return 1
     payload = pack.to_dict()
     if json_output:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        _print_json(payload)
         return 0
     print(f"Pack: {pack.pack_id}")
     print(f"Version: {pack.version}")
@@ -225,7 +236,7 @@ def _print_sources_list(json_output: bool) -> None:
     registry = load_registry()
     items = [source.to_dict() for source in registry.sources.values()]
     if json_output:
-        print(json.dumps(items, ensure_ascii=False, indent=2))
+        _print_json(items)
         return
     for source in registry.sources.values():
         license_label = source.license_id or "unknown"
@@ -236,7 +247,7 @@ def _print_sources_verify(json_output: bool) -> int:
     registry = load_registry()
     checks = verify_registry_sources(registry)
     if json_output:
-        print(json.dumps([check.to_dict() for check in checks], ensure_ascii=False, indent=2))
+        _print_json([check.to_dict() for check in checks])
     else:
         for check in checks:
             print(f"[{'PASS' if check.ok else 'FAIL'}] {check.check_id}: {check.message} {check.detail}".rstrip())
@@ -261,7 +272,7 @@ def _print_workflow_status(path: Path, json_output: bool) -> int:
 
     result = GsdWorkflowAdapter().verify(AppPaths.build(path))
     if json_output:
-        print(json.dumps(_workflow_result_payload(result), ensure_ascii=False, indent=2))
+        _print_json(_workflow_result_payload(result))
     else:
         print(f"Workflow: {result.workflow_id}")
         print(f"Status: {result.status}")
@@ -278,7 +289,7 @@ def _print_sync_gsd(args) -> int:
         dry_run=args.dry_run,
     )
     if args.json:
-        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        _print_json(report.to_dict())
     else:
         print(f"GSD config: {report.config_path}")
         print(f"Initialized: {report.initialized}")
@@ -292,7 +303,7 @@ def _print_sync_gsd(args) -> int:
 def _print_migration_report(args) -> int:
     report = migrate_legacy_v1(Path(args.path), dry_run=args.dry_run)
     if args.json:
-        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        _print_json(report.to_dict())
         return 0
     print(f"Migration project: {report.project_root}")
     print(f"Legacy v1 detected: {report.detected}")
@@ -332,7 +343,7 @@ def _doctor_payload(path: Path) -> dict[str, object]:
 def _print_doctor(args) -> int:
     payload = _doctor_payload(Path(args.path))
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        _print_json(payload)
     else:
         for check in payload["checks"]:
             print(f"[{check['status']}] {check['label']}: {check['detail']}")
@@ -342,7 +353,7 @@ def _print_doctor(args) -> int:
 def _print_status(args) -> int:
     status = project_status(Path(args.path))
     if args.json:
-        print(json.dumps(status, ensure_ascii=False, indent=2))
+        _print_json(status)
         return 0
     print(f"Project: {status['project_root']}")
     print("Detected stacks: " + (", ".join(status["detected_stacks"]) or "none"))
@@ -379,7 +390,7 @@ def _print_update(args) -> int:
         yes=args.yes,
     )
     if args.json:
-        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        _print_json(report.to_dict())
     else:
         print(f"Project: {report.project_root}")
         print("Mode: " + ("dry-run" if report.dry_run else "apply"))
@@ -413,7 +424,7 @@ def _print_remove(args) -> int:
         yes=args.yes,
     )
     if args.json:
-        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        _print_json(report.to_dict())
     else:
         print(f"Project: {report.project_root}")
         print("Mode: " + ("dry-run" if report.dry_run else "apply"))
@@ -437,7 +448,7 @@ def _print_apply(args) -> int:
         "warnings": ["Apply is validate-only in phase 10; no files were written."],
     }
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        _print_json(payload)
     else:
         print(f"Plan project: {plan.project_root}")
         print(f"Workflow: {plan.workflow}")
@@ -452,7 +463,44 @@ def main(argv: list[str] | None = None) -> int:
     command = args.command or "init"
     try:
         if command == "init":
-            if args.dry_run:
+            if args.legacy:
+                if args.dry_run:
+                    print("ecc-init failed: --legacy cannot be combined with --dry-run; use migrate/update previews instead", file=sys.stderr)
+                    return 1
+                report = initialize_project(Path(args.path), offline=args.offline, no_sync=args.no_sync)
+                if args.json:
+                    _print_json(report.to_dict())
+                else:
+                    _print_run_report(report)
+                return 2 if report.conflicts else 0
+            if args.yes and not args.dry_run:
+                report = update_project(
+                    Path(args.path),
+                    profile_id=args.profile,
+                    include_packs=args.pack,
+                    exclude_packs=args.without_pack,
+                    update_workflow=True,
+                    update_packs=True,
+                    dry_run=False,
+                    yes=True,
+                )
+                if args.json:
+                    _print_json(report.to_dict())
+                else:
+                    print("GSD init uses the lifecycle update surface in 0.2.0a0.")
+                    print(f"Project: {report.project_root}")
+                    print(f"Workflow update: {report.workflow_result.status if report.workflow_result else 'not requested'}")
+                    print(f"Pack update changed: {report.config_report.changed if report.config_report else False}")
+                    if report.operation_id:
+                        print(f"Operation: {report.operation_id}")
+                    for warning in report.warnings:
+                        print(f"[warning] {warning}")
+                if not report.source_ok:
+                    return 1
+                if report.manual_action_required:
+                    return 2
+                return 0
+            else:
                 plan = build_registry_install_plan(
                     Path(args.path),
                     profile_id=args.profile,
@@ -466,12 +514,6 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     _print_plan_summary(plan)
                 return 0
-            report = initialize_project(Path(args.path), offline=args.offline, no_sync=args.no_sync)
-            if args.json:
-                print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
-            else:
-                _print_run_report(report)
-            return 2 if report.conflicts else 0
         if command == "plan":
             plan = build_registry_install_plan(
                 Path(args.path),
@@ -525,7 +567,7 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.receipt) if args.receipt else None,
             )
             if args.json:
-                print(json.dumps({"backup_id": backup_id, "restored": count}, ensure_ascii=False, indent=2))
+                _print_json({"backup_id": backup_id, "restored": count})
             else:
                 print(f"Restored {count} item(s) from backup {backup_id}.")
             return 0

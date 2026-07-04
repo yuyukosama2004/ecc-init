@@ -35,7 +35,10 @@ def test_gsd_install_dry_run_plans_pinned_command(monkeypatch, tmp_path: Path) -
     assert result.status == "planned"
     assert result.commands[0].args[-1] == f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}"
     assert result.logs == []
-    assert runner.calls == [("C:/tools/node.cmd", "--version")]
+    assert len(runner.calls) == 1
+    node_call = runner.calls[0]
+    assert node_call[0].replace("\\", "/").endswith(("/node", "/node.cmd"))
+    assert node_call[1:] == ("--version",)
     assert any("Claude Home affected scope" in warning for warning in result.warnings)
 
 
