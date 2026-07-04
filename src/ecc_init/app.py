@@ -10,13 +10,19 @@ from typing import Any
 
 from . import __version__
 from .backup import BackupSession, list_backups, rollback_backup
+from .core.models import Receipt
+from .core.ownership import managed_file_statuses
+from .core.plan import new_operation_id
+from .core.receipt import ReceiptStore
 from .detect import DetectionResult, detect_project
+from .errors import ConfigError
 from .merge import InstallResult, install_managed_section, install_whole_file
 from .paths import AppPaths
+from .packs.gsd_bridge import POLICY_PROFILES
 from .project import render_project_overview, render_project_section, structure_fingerprint
 from .resources import read_manifest, read_resource_text
 from .sync import fetch_upstream_skill, resolve_stable_ref
-from .util import human_bool, load_json, now_iso, read_text, write_json_atomic, write_text_atomic
+from .util import human_bool, load_json, now_iso, read_text, sha256_text, write_json_atomic, write_text_atomic
 
 
 GLOBAL_START = "<!-- ecc-init:start global -->"
@@ -57,6 +63,30 @@ def _create_if_missing(path: Path, content: str, backup: BackupSession) -> Insta
 
 def _ensure_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
+
+
+def _save_operation_receipt(paths: AppPaths, report: RunReport) -> None:
+    if not report.backup_id:
+        return
+    receipt = Receipt(
+        operation_id=new_operation_id("init"),
+        created_at=now_iso(),
+        project_root=paths.project_root,
+        workflow={"id": "legacy-ecc", "status": "installed"},
+        files=[
+            {
+                "path": str(result.path),
+                "owner": result.message or "legacy-init",
+                "sha256": sha256_text(read_text(result.path)) if result.path.exists() else None,
+                "previous_sha256": None,
+                "status": result.status,
+            }
+            for result in report.results
+        ],
+        backup_id=report.backup_id,
+        result="success",
+    )
+    ReceiptStore(paths.operations_dir).save(receipt)
 
 
 def initialize_project(
@@ -219,6 +249,7 @@ def initialize_project(
     _write_state_if_changed(paths.project_state, project_state, backup)
     _write_state_if_changed(paths.global_state, global_state, backup)
     report.backup_id = backup.finish()
+    _save_operation_receipt(paths, report)
     return report
 
 
@@ -253,6 +284,11 @@ def project_status(project_root: Path | None = None) -> dict[str, Any]:
         "last_initialized_at": project_state.get("last_initialized_at"),
         "conflicts": conflicts,
         "backup_count": len(list_backups(paths.backups_dir)),
+        "modified_managed_files": [
+            str(status.path)
+            for status in [*managed_file_statuses(global_state), *managed_file_statuses(project_state)]
+            if status.modified
+        ],
     }
 
 
@@ -276,9 +312,38 @@ def doctor(project_root: Path | None = None) -> list[tuple[str, bool, str]]:
 
     manifest = read_manifest()
     checks.append(("内置清单", bool(manifest.get("global_skills") and manifest.get("project_skills")), "manifest.json"))
+    gsd_config = paths.project_root / ".planning" / "config.json"
+    checks.append(("GSD config bridge", True, f"{gsd_config} ({'已初始化' if gsd_config.exists() else '未初始化'})"))
+    default_policy = POLICY_PROFILES["default"]
+    checks.append(
+        (
+            "GSD hard-enforced config",
+            True,
+            "parallelization.*, workflow.use_worktrees, workflow.subagent_timeout, workflow.node_repair_budget",
+        )
+    )
+    checks.append(("GSD advisory-only policy", True, ", ".join(sorted(default_policy.advisory))))
     return checks
 
 
-def rollback(project_root: Path | None = None, backup_id: str | None = None) -> tuple[str, int]:
+def rollback(
+    project_root: Path | None = None,
+    backup_id: str | None = None,
+    operation_id: str | None = None,
+    receipt_path: Path | None = None,
+) -> tuple[str, int]:
     paths = AppPaths.build(project_root)
+    selectors = [bool(backup_id), bool(operation_id), bool(receipt_path)]
+    if sum(selectors) > 1:
+        raise ConfigError("rollback 只能同时指定 backup、operation 或 receipt 之一")
+    if operation_id:
+        receipt = ReceiptStore(paths.operations_dir).load(operation_id)
+        if not receipt.backup_id:
+            raise ConfigError(f"operation {operation_id} 没有可回滚的 backup")
+        backup_id = receipt.backup_id
+    elif receipt_path:
+        receipt = ReceiptStore(paths.operations_dir).load_path(receipt_path)
+        if not receipt.backup_id:
+            raise ConfigError(f"receipt {receipt_path} 没有可回滚的 backup")
+        backup_id = receipt.backup_id
     return rollback_backup(paths.backups_dir, backup_id)

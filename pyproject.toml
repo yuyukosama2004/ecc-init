@@ -27,7 +27,7 @@ dependencies = []
 ecc-init = "ecc_init.cli:main"
 
 [project.urls]
-Repository = "https://github.com/affaan-m/ECC"
+Repository = "https://github.com/yuyukosama2004/ecc-init"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -39,6 +39,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 ecc_init = [
   "resources/*.json",
+  "resources/registry/*.json",
   "resources/templates/*.md",
   "resources/global_skills/*/*.md",
   "resources/project_skills/*/*.md"

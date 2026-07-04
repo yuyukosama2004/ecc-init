@@ -14,6 +14,11 @@
 
 当前版本为 **0.1.0 Alpha**，适合本地试用和继续定制。
 
+## 路线状态
+
+`0.1.x` 是 legacy 初始化器：它保留当前 Python CLI、检测、合并、备份和回滚行为。
+后续 `0.2.0 Alpha` 将渐进切换为以 GSD Core 为唯一工作流内核的架构；迁移期间不会 Fork、vendor 或直接修改 GSD。
+
 ## 支持的技术栈
 
 首版支持自动识别：
@@ -78,10 +83,18 @@ ecc-init D:\Projects\my-demo
 其他命令：
 
 ```powershell
+ecc-init plan
+ecc-init packs list
+ecc-init packs show frontend-essential
+ecc-init sources list
+ecc-init sources verify
+ecc-init workflow status
+ecc-init sync-gsd --dry-run
 ecc-init status
 ecc-init update
 ecc-init doctor
 ecc-init rollback
+ecc-init rollback --operation-id <operation-id>
 ```
 
 离线运行：

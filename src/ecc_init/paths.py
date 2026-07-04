@@ -57,3 +57,11 @@ class AppPaths:
     @property
     def cache_dir(self) -> Path:
         return self.ecc_home / "cache"
+
+    @property
+    def operations_dir(self) -> Path:
+        return self.ecc_home / "operations"
+
+    @property
+    def source_lock(self) -> Path:
+        return self.project_root / ".claude" / "ecc-init-source-lock.json"

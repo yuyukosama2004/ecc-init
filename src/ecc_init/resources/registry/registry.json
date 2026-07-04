@@ -1,0 +1,302 @@
+{
+  "schema_version": 2,
+  "sources": [
+    {
+      "source_id": "bundled",
+      "kind": "bundled",
+      "repository": "https://github.com/yuyukosama2004/ecc-init",
+      "package": null,
+      "version": "0.1.0",
+      "commit": null,
+      "path": "src/ecc_init/resources",
+      "license_id": "MIT",
+      "license_path": "LICENSE",
+      "integrity": null,
+      "executable_surface": []
+    },
+    {
+      "source_id": "gsd-core",
+      "kind": "npm",
+      "repository": "https://github.com/open-gsd/gsd-core",
+      "package": "@opengsd/gsd-core",
+      "version": "1.6.1",
+      "commit": null,
+      "path": null,
+      "license_id": null,
+      "license_path": null,
+      "integrity": null,
+      "executable_surface": []
+    }
+  ],
+  "workflows": [
+    {
+      "workflow_id": "none",
+      "adapter": "none",
+      "source_id": null,
+      "scope_default": "project",
+      "conflicts": []
+    },
+    {
+      "workflow_id": "gsd",
+      "adapter": "gsd",
+      "source_id": "gsd-core",
+      "scope_default": "global",
+      "conflicts": ["legacy-ecc"]
+    }
+  ],
+  "components": [
+    {
+      "component_id": "project-claude",
+      "source_id": "bundled",
+      "install_name": "project CLAUDE.md",
+      "target_scope": "project",
+      "target_subdir": "CLAUDE.md",
+      "projection_include": ["templates/project_CLAUDE.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "project-overview",
+      "source_id": "bundled",
+      "install_name": "PROJECT_OVERVIEW.md",
+      "target_scope": "project",
+      "target_subdir": "docs/PROJECT_OVERVIEW.md",
+      "projection_include": ["templates/PROJECT_OVERVIEW.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "development-log",
+      "source_id": "bundled",
+      "install_name": "DEVELOPMENT_LOG.md",
+      "target_scope": "project",
+      "target_subdir": "docs/DEVELOPMENT_LOG.md",
+      "projection_include": ["templates/DEVELOPMENT_LOG.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-code-review",
+      "source_id": "bundled",
+      "install_name": "code-review",
+      "target_scope": "global",
+      "target_subdir": "skills/code-review/SKILL.md",
+      "projection_include": ["global_skills/code-review/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-security-review",
+      "source_id": "bundled",
+      "install_name": "security-review",
+      "target_scope": "global",
+      "target_subdir": "skills/security-review/SKILL.md",
+      "projection_include": ["global_skills/security-review/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-code-tour",
+      "source_id": "bundled",
+      "install_name": "code-tour",
+      "target_scope": "global",
+      "target_subdir": "skills/code-tour/SKILL.md",
+      "projection_include": ["global_skills/code-tour/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-python-patterns",
+      "source_id": "bundled",
+      "install_name": "python-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/python-patterns/SKILL.md",
+      "projection_include": ["project_skills/python-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-fastapi-patterns",
+      "source_id": "bundled",
+      "install_name": "fastapi-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/fastapi-patterns/SKILL.md",
+      "projection_include": ["project_skills/fastapi-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-langchain-patterns",
+      "source_id": "bundled",
+      "install_name": "langchain-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/langchain-patterns/SKILL.md",
+      "projection_include": ["project_skills/langchain-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-langgraph-patterns",
+      "source_id": "bundled",
+      "install_name": "langgraph-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/langgraph-patterns/SKILL.md",
+      "projection_include": ["project_skills/langgraph-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-java-patterns",
+      "source_id": "bundled",
+      "install_name": "java-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/java-patterns/SKILL.md",
+      "projection_include": ["project_skills/java-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-springboot-patterns",
+      "source_id": "bundled",
+      "install_name": "springboot-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/springboot-patterns/SKILL.md",
+      "projection_include": ["project_skills/springboot-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-typescript-patterns",
+      "source_id": "bundled",
+      "install_name": "typescript-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/typescript-patterns/SKILL.md",
+      "projection_include": ["project_skills/typescript-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    },
+    {
+      "component_id": "skill-react-patterns",
+      "source_id": "bundled",
+      "install_name": "react-patterns",
+      "target_scope": "project",
+      "target_subdir": ".claude/skills/react-patterns/SKILL.md",
+      "projection_include": ["project_skills/react-patterns/SKILL.md"],
+      "projection_exclude": [],
+      "required": true
+    }
+  ],
+  "packs": [
+    {
+      "pack_id": "project-baseline",
+      "version": 1,
+      "description": "Project CLAUDE.md and onboarding documentation.",
+      "components": ["project-claude", "project-overview", "development-log"],
+      "requires": [],
+      "conflicts": [],
+      "stack_conditions": [],
+      "gsd_agent_skills": {},
+      "gsd_config_defaults": {}
+    },
+    {
+      "pack_id": "quality-basic",
+      "version": 1,
+      "description": "Basic review, security review, and code tour skills.",
+      "components": ["skill-code-review", "skill-security-review", "skill-code-tour"],
+      "requires": ["project-baseline"],
+      "conflicts": [],
+      "stack_conditions": [],
+      "gsd_agent_skills": {
+        "reviewer": ["code-review"],
+        "security-reviewer": ["security-review"],
+        "explorer": ["code-tour"]
+      },
+      "gsd_config_defaults": {}
+    },
+    {
+      "pack_id": "python-fastapi",
+      "version": 1,
+      "description": "Python and FastAPI project skills.",
+      "components": ["skill-python-patterns", "skill-fastapi-patterns"],
+      "requires": ["project-baseline"],
+      "conflicts": [],
+      "stack_conditions": ["python", "fastapi"],
+      "gsd_agent_skills": {
+        "executor": ["python-patterns", "fastapi-patterns"],
+        "reviewer": ["python-patterns", "fastapi-patterns"]
+      },
+      "gsd_config_defaults": {}
+    },
+    {
+      "pack_id": "rag-python",
+      "version": 1,
+      "description": "LangChain and LangGraph project skills.",
+      "components": ["skill-langchain-patterns", "skill-langgraph-patterns"],
+      "requires": ["project-baseline"],
+      "conflicts": [],
+      "stack_conditions": ["langchain", "langgraph"],
+      "gsd_agent_skills": {
+        "executor": ["langchain-patterns", "langgraph-patterns"],
+        "reviewer": ["langchain-patterns", "langgraph-patterns"]
+      },
+      "gsd_config_defaults": {}
+    },
+    {
+      "pack_id": "java-spring",
+      "version": 1,
+      "description": "Java and Spring Boot project skills.",
+      "components": ["skill-java-patterns", "skill-springboot-patterns"],
+      "requires": ["project-baseline"],
+      "conflicts": [],
+      "stack_conditions": ["java", "spring-boot"],
+      "gsd_agent_skills": {
+        "executor": ["java-patterns", "springboot-patterns"],
+        "reviewer": ["java-patterns", "springboot-patterns"]
+      },
+      "gsd_config_defaults": {}
+    },
+    {
+      "pack_id": "frontend-essential",
+      "version": 1,
+      "description": "TypeScript and React project skills.",
+      "components": ["skill-typescript-patterns", "skill-react-patterns"],
+      "requires": ["project-baseline"],
+      "conflicts": [],
+      "stack_conditions": ["typescript", "react"],
+      "gsd_agent_skills": {
+        "executor": ["typescript-patterns", "react-patterns"],
+        "reviewer": ["typescript-patterns", "react-patterns"]
+      },
+      "gsd_config_defaults": {}
+    }
+  ],
+  "profiles": [
+    {
+      "profile_id": "minimal",
+      "workflow": "none",
+      "packs": ["project-baseline"]
+    },
+    {
+      "profile_id": "default",
+      "workflow": "gsd",
+      "packs": [
+        "project-baseline",
+        "quality-basic",
+        "python-fastapi",
+        "rag-python",
+        "java-spring",
+        "frontend-essential"
+      ]
+    },
+    {
+      "profile_id": "frontend",
+      "workflow": "gsd",
+      "packs": ["project-baseline", "quality-basic", "frontend-essential"]
+    },
+    {
+      "profile_id": "rag",
+      "workflow": "gsd",
+      "packs": ["project-baseline", "quality-basic", "python-fastapi", "rag-python"]
+    }
+  ]
+}
