@@ -90,12 +90,26 @@ ecc-init sources list
 ecc-init sources verify
 ecc-init workflow status
 ecc-init sync-gsd --dry-run
+ecc-init migrate --dry-run
+ecc-init migrate
 ecc-init status
 ecc-init update
 ecc-init doctor
 ecc-init rollback
 ecc-init rollback --operation-id <operation-id>
 ```
+
+### Legacy v1 migration
+
+`ecc-init migrate --dry-run` previews removal of the legacy v1 workflow markers and deprecated global workflow skills without writing files.
+
+`ecc-init migrate` applies the v1-to-v2 state migration, writes `docs/ecc-init-migration-report.md`, records an operation receipt, and can be reverted with:
+
+```powershell
+ecc-init rollback --operation-id <operation-id>
+```
+
+User-modified legacy skills are preserved and reported for manual review.
 
 离线运行：
 

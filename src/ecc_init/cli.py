@@ -7,6 +7,7 @@ from pathlib import Path
 
 from . import __version__
 from .app import doctor, initialize_project, project_status, rollback
+from .migration import migrate_legacy_v1
 from .packs import build_registry_install_plan, load_registry
 from .packs.gsd_bridge import sync_gsd_config
 from .sources import verify_registry_sources
@@ -14,7 +15,19 @@ from .util import write_text_atomic
 from .workflows import GsdWorkflowAdapter
 
 
-COMMANDS = {"init", "plan", "packs", "sources", "workflow", "sync-gsd", "status", "update", "doctor", "rollback"}
+COMMANDS = {
+    "init",
+    "plan",
+    "packs",
+    "sources",
+    "workflow",
+    "sync-gsd",
+    "migrate",
+    "status",
+    "update",
+    "doctor",
+    "rollback",
+}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -70,6 +83,11 @@ def _parser() -> argparse.ArgumentParser:
     sync_gsd.add_argument("--pack", action="append", default=[], help="仅同步指定 Pack，可重复")
     sync_gsd.add_argument("--dry-run", action="store_true", help="只输出预览，不写入 config")
     sync_gsd.add_argument("--json", action="store_true", help="以 JSON 输出")
+
+    migrate = sub.add_parser("migrate", help="Preview or apply legacy v1 to v2 migration")
+    migrate.add_argument("path", nargs="?", default=".")
+    migrate.add_argument("--dry-run", action="store_true", help="Preview migration actions without writing files")
+    migrate.add_argument("--json", action="store_true", help="Output migration report as JSON")
 
     diagnose = sub.add_parser("doctor", help="检查 Python、Git、目录权限和内置资源")
     diagnose.add_argument("path", nargs="?", default=".")
@@ -207,6 +225,27 @@ def _print_sync_gsd(args) -> int:
     return 0
 
 
+def _print_migration_report(args) -> int:
+    report = migrate_legacy_v1(Path(args.path), dry_run=args.dry_run)
+    if args.json:
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        return 0
+    print(f"Migration project: {report.project_root}")
+    print(f"Legacy v1 detected: {report.detected}")
+    print("Mode: dry-run" if args.dry_run else "Mode: apply")
+    print(f"Applied: {report.applied}")
+    if report.backup_id:
+        print(f"Backup: {report.backup_id}")
+    if report.operation_id:
+        print(f"Operation: {report.operation_id}")
+    for action in report.actions:
+        detail = f" ({action.reason})" if action.reason else ""
+        print(f"[{action.status}] {action.action}: {action.path}{detail}")
+    for warning in report.warnings:
+        print(f"[warning] {warning}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(_normalize_argv(list(sys.argv[1:] if argv is None else argv)))
     command = args.command or "init"
@@ -250,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
                 return _print_workflow_status(Path(args.path), args.json)
         if command == "sync-gsd":
             return _print_sync_gsd(args)
+        if command == "migrate":
+            return _print_migration_report(args)
         if command == "status":
             status = project_status(Path(args.path))
             print(f"项目：{status['project_root']}")

@@ -10,6 +10,7 @@
 - Added source provider foundations: bundled and GitHub archive providers, cache/integrity checks, zip-slip-safe extraction, source locks, and `ecc-init sources list/verify`.
 - Added a GSD workflow adapter foundation with pinned `@opengsd/gsd-core@1.6.1` command planning, Node/npm checks, dry-run install/update/remove surfaces, and `ecc-init workflow status`.
 - Added a GSD config bridge with AgentPolicyProfile defaults, default-only `.planning/config.json` merge, agent skill injection, `sync-gsd`, and doctor hard/advisory reporting.
+- Added legacy v1 migration planning and apply support with `ecc-init migrate --dry-run`, migration reports, operation receipts, rollback support, user-modified legacy skill preservation, and init-time migration hints.
 
 ## 0.1.0 Alpha
 

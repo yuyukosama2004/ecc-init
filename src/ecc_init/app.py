@@ -17,6 +17,7 @@ from .core.receipt import ReceiptStore
 from .detect import DetectionResult, detect_project
 from .errors import ConfigError
 from .merge import InstallResult, install_managed_section, install_whole_file
+from .migration import detect_legacy_v1
 from .paths import AppPaths
 from .packs.gsd_bridge import POLICY_PROFILES
 from .project import render_project_overview, render_project_section, structure_fingerprint
@@ -250,6 +251,10 @@ def initialize_project(
     _write_state_if_changed(paths.global_state, global_state, backup)
     report.backup_id = backup.finish()
     _save_operation_receipt(paths, report)
+    if detect_legacy_v1(paths.project_root):
+        report.warnings.append(
+            "Legacy v1 workflow files were detected. Run `ecc-init migrate --dry-run` to preview the v2 migration."
+        )
     return report
 
 

@@ -1,14 +1,14 @@
 # Implementation Status
 
 ## Current phase
-- Phase: 6 GSD config bridge
-- Batch: 2026-07-04 continuation after phase 5 batch
+- Phase: 7 Legacy v1 migration
+- Batch: 2026-07-04 continuation after phase 6 batch
 - Branch: main
 - Started: 2026-07-03 Asia/Shanghai
 
 ## Scope
-- In scope: AgentPolicyProfile defaults, default-only `.planning/config.json` merge, agent_skills bridge, advisory-only reporting, `sync-gsd`, doctor path/status reporting, user deletion protection, malformed JSON safety, and Pack cleanup helper.
-- Out of scope: real GSD install, GSD vendoring/forking, defaulting legacy init to GSD, v1 migration, full Pack uninstall command, and parallel write subagents.
+- In scope: legacy v1 detection, migration plan/report, deprecated workflow section removal, deprecated workflow skill removal, user-modified legacy skill preservation, schema v2 migration state, operation receipt, rollback support, `ecc-init migrate --dry-run`, and init-time migration hint.
+- Out of scope: real GSD install, GSD vendoring/forking, defaulting legacy init to GSD, frontend/stack Pack installation, full Pack uninstall command, and parallel write subagents.
 
 ## Baseline
 - Test command: `python -m pytest`
@@ -65,6 +65,16 @@
 - [x] Added `ecc-init sync-gsd`.
 - [x] Added doctor reporting for GSD config bridge, hard-enforced config, and advisory-only policy.
 - [x] Added phase 6 tests for merge semantics, malformed JSON, path traversal, missing skills, Pack cleanup, and CLI dry-run.
+- [x] Added `src/ecc_init/migration/` with legacy v1 detection, migration plan/report models, and apply orchestration.
+- [x] Added clean managed-section removal for legacy global/project workflow markers.
+- [x] Added deprecated workflow skill removal for clean v1-managed `task-planning`, `verification-loop`, and `dev-retrospective`.
+- [x] Added preservation and warning behavior for user-modified legacy workflow skills.
+- [x] Added schema v2 migration state with `gsd` workflow authority and `ecc-init/legacy-v1` Pack migration record.
+- [x] Added migration report writing to `docs/ecc-init-migration-report.md`.
+- [x] Added operation receipt creation for migration and rollback via `--operation-id`.
+- [x] Added `ecc-init migrate --dry-run` / `ecc-init migrate --json`.
+- [x] Added init-time hint telling legacy v1 users to preview migration.
+- [x] Added phase 7 tests for dry-run, clean migration, user modification protection, repeatability, rollback, CLI JSON, and init warning behavior.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -137,6 +147,16 @@
 - Evidence: The GSD config docs require project-relative skill entries to point at directories containing `SKILL.md`, and the plan requires user deletion protection.
 - Consequence: Deleted or not-yet-installed skills are skipped with warnings instead of recreated or referenced.
 
+- ID: D-2026-07-04-05
+- Decision: Legacy migration preserves user-modified deprecated workflow skills instead of deleting or rewriting them.
+- Evidence: Phase 7 requires modified v1 not to be overwritten or deleted.
+- Consequence: Clean v1 installs become GSD-only after migration; modified legacy artifacts remain for manual review and are reported in the migration report.
+
+- ID: D-2026-07-04-06
+- Decision: `initialize_project` emits a migration hint but does not automatically apply migration.
+- Evidence: Phase 7 requires an init migration prompt, while the project still needs explicit dry-run support before writes.
+- Consequence: Existing init behavior stays compatible, and users can preview with `ecc-init migrate --dry-run` before changing workflow files.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -171,15 +191,21 @@
 | `%TEMP%\ecc-init-pytest-venv\Scripts\python.exe -m pytest` | Passed | `59 passed` |
 | `python -m compileall src` | Passed | compiled all source files after phase 6 |
 | `git diff --check` | Passed | exit code 0 after phase 6; Git emitted CRLF normalization warnings only |
+| `python -m pip install pytest` | Passed | installed pytest in the current Python 3.10 environment because no local venv was present |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_migration.py tests\test_cli.py tests\test_app.py` | Passed | `24 passed` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src` | Passed | compiled all source files after phase 7 implementation |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `66 passed` |
+| `git diff --check` | Passed | exit code 0 after phase 7; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
-- The tracked `LICENSE` deletion existed before this batch and remains unresolved.
+- The tracked `LICENSE` deletion was user-intended and committed before phase 7.
 - `DEVELOPMENT_PLAN_CODEX.md` was present as an untracked root file at start and remains part of the worktree state.
-- The new v2 model, registry, transaction, source, workflow, and config bridge layers are intentionally not fully integrated into real installation or migration yet.
+- The new v2 model, registry, transaction, source, workflow, config bridge, and migration layers are not yet combined into a single full GSD default install/update/remove flow.
 - Legacy `rollback_backup` still performs backup-level rollback; partial rollback protection currently lives in `Transaction.rollback` for future transaction-managed operations.
 - `sources verify` does not prove remote archive availability; network E2E remains a later integration/release concern.
 - `workflow status` can fail on machines without Node.js 18+/npm/npx; this is reported as a local environment check, not a code failure.
 - `sync-gsd` does not validate global Skill symlink escapes beyond requiring `SKILL.md` existence; trusted global roots remain a future hardening item.
+- If legacy workflow skills were modified by the user, migration preserves them and leaves manual cleanup for the report-guided review path.
 
 ## Next permitted batch
-- Continue with phase 7 only after this phase 6 batch passes full verification and review.
+- Continue with phase 8 only after this phase 7 batch passes full verification, diff review, commit, and push.

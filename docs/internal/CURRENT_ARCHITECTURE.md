@@ -92,6 +92,7 @@ Note: the worktree already had tracked `LICENSE` deleted before this implementat
 - `sources list` and `sources verify` inspect and validate source declarations. Verification is local/declaration-level in this phase and does not download archives.
 - `workflow status` runs local GSD adapter environment checks and does not install GSD.
 - `sync-gsd` performs a default-only merge into `.planning/config.json` when it already exists. It skips missing/deleted Skill directories and never overwrites explicit user values.
+- `migrate` previews or applies legacy v1-to-v2 migration. `--dry-run` writes nothing; apply writes a migration report, operation receipt, and rollback-capable backup.
 - `status` reports detected stacks, installed global/project skills, code-tour state, upstream ref, conflicts, and backup count.
 - `status` also reports locally modified managed files by comparing current hashes with recorded base hashes.
 - `doctor` checks Python, Git, directory writability, and bundled manifest presence.
@@ -103,12 +104,13 @@ Note: the worktree already had tracked `LICENSE` deleted before this implementat
 - Project state path: `<project>/.claude/ecc-init-state.json`.
 - Existing runtime state is still version `1`.
 - Managed files are tracked by absolute target path with `source_id`, `kind`, immutable base path, and base hash.
-- Phase 1 adds schema v2 dataclasses and `StateStore`, but no automatic v1-to-v2 migration has been enabled yet.
+- Phase 1 adds schema v2 dataclasses and `StateStore`; phase 7 adds an explicit `migrate` path that writes schema v2 state.
 - Phase 2 adds a declarative registry for workflows, profiles, components, and Packs. It is used by `plan` only; runtime initialization is still legacy.
 - Phase 3 adds operation receipts under `~/.ecc-init/operations/<operation-id>/receipt.json` when legacy init creates a backup.
 - Phase 4 adds source provider foundations, source locks, archive cache safety, integrity checks, and directory projection helpers. These are not yet wired into legacy init.
 - Phase 5 adds a GSD Workflow Adapter foundation with a pinned package version, command runner abstraction, Node/npm checks, and dry-run command planning. It is not enabled as the default installer path.
 - Phase 6 adds a GSD config bridge for hard-enforced config defaults, advisory-only policy reporting, and agent_skills injection. It is only used by `sync-gsd` and doctor/status style reporting.
+- Phase 7 adds legacy v1 detection and migration. Clean v1 installs can be migrated to schema v2, deprecated workflow skills and managed workflow sections are removed, user-modified legacy skills are preserved, and rollback can restore the v1 state.
 
 ## Current Install Flow
 
@@ -137,16 +139,17 @@ Note: the worktree already had tracked `LICENSE` deleted before this implementat
 - Source tests cover fixed-commit GitHub archive resolution with offline cache, hash mismatch, host allowlist, zip slip rejection, projection safety, source lock round-trip, and `sources` CLI.
 - Workflow tests cover fake runner execution, dry-run command planning, Node missing/too-old checks, inspect/remove strategy, and CLI status output.
 - GSD bridge tests cover default-only merge, explicit value preservation, agent_skills dedupe, missing Skill protection, malformed JSON safety, Pack cleanup, path traversal rejection, and CLI dry-run.
+- Migration tests cover dry-run no-write behavior, clean v1 migration, user-modified legacy skill preservation, repeatability, operation-id rollback, init migration hints, and CLI JSON output.
 
 ## Differences From The Development Plan
 
 - GSD Core is not installed, vendored, forked, or modified.
 - The runtime default remains the legacy 0.1 initializer; GSD is not yet the workflow authority.
-- Pack Registry, Source Provider, Source Lock, Transaction, full Receipt persistence, GSD Adapter, GSD config bridge, and v1 migration are not implemented.
-- Pack Registry, local resolver, Transaction skeleton, ownership helpers, operation receipts, Source Provider foundations, Source Lock store, GSD Adapter foundation, and GSD config bridge now exist. Full source integration, full transaction integration, and v1 migration are not implemented.
-- Legacy global workflow skills (`task-planning`, `verification-loop`, `dev-retrospective`) are still installed by the legacy init path.
+- Pack Registry, local resolver, Transaction skeleton, ownership helpers, operation receipts, Source Provider foundations, Source Lock store, GSD Adapter foundation, GSD config bridge, and legacy v1 migration now exist.
+- Full source integration, full transaction integration into legacy init, real GSD installation, frontend/stack Pack installs, and release CI remain later phases.
+- Legacy global workflow skills (`task-planning`, `verification-loop`, `dev-retrospective`) are still installed by the legacy init path until migration is applied.
 - Legacy network sync still targets selected `affaan-m/ECC` release/raw files.
-- `StateStore` and v2 models exist as phase 1 foundations only; they are not yet wired into `initialize_project`.
+- `StateStore` and v2 models exist as foundations; phase 7 migration writes v2 migration state, but `initialize_project` still writes legacy v1 state.
 - `ecc-init plan` previews declarative Pack operations and deliberately performs no external network resolution.
 - `Transaction` is available for future external component installs, but the legacy init path still uses the original direct `BackupSession` orchestration.
 - `GitHubArchiveProvider` requires a fixed 40-character commit SHA and an allowed host. Tests use local fake archives; no real source archive is downloaded during verification.
