@@ -37,9 +37,31 @@ def _ecc_command(root: Path, python: Path) -> list[str]:
     return [str(python), "-m", "ecc_init.cli"]
 
 
-def _run(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def _smoke_env(root: Path) -> dict[str, str]:
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    env["ECC_INIT_HOME"] = str(root / "ecc-home")
+    env["CLAUDE_HOME"] = str(root / "claude-home")
+    return env
+
+
+def _run(
+    args: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
     try:
-        return subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, check=True)
+        return subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            cwd=cwd,
+            check=True,
+        )
     except subprocess.CalledProcessError as exc:
         print(f"command failed: {' '.join(args)}", file=sys.stderr)
         if exc.stdout:
@@ -49,8 +71,8 @@ def _run(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.Co
         raise
 
 
-def _json_command(args: list[str], *, env: dict[str, str]) -> dict[str, object]:
-    result = _run(args, env=env)
+def _json_command(args: list[str], *, env: dict[str, str], cwd: Path | None = None) -> dict[str, object]:
+    result = _run(args, env=env, cwd=cwd)
     return json.loads(result.stdout)
 
 
@@ -61,7 +83,8 @@ def smoke(wheel_or_dist: Path) -> None:
         venv_dir = root / "venv"
         venv.EnvBuilder(with_pip=True).create(venv_dir)
         python = _venv_python(venv_dir)
-        _run([str(python), "-m", "pip", "install", "--no-deps", "--disable-pip-version-check", str(wheel)])
+        env = _smoke_env(root)
+        _run([str(python), "-m", "pip", "install", "--no-deps", "--disable-pip-version-check", str(wheel)], env=env)
         ecc = _ecc_command(venv_dir, python)
 
         demo = root / "demo"
@@ -73,11 +96,6 @@ def smoke(wheel_or_dist: Path) -> None:
             encoding="utf-8",
         )
         plan_file = root / "plan.json"
-        env = {
-            **os.environ,
-            "ECC_INIT_HOME": str(root / "ecc-home"),
-            "CLAUDE_HOME": str(root / "claude-home"),
-        }
 
         _run([*ecc, "--version"], env=env)
         plan = _json_command([*ecc, "init", str(demo), "--json"], env=env)
@@ -93,9 +111,25 @@ def smoke(wheel_or_dist: Path) -> None:
         remove = _json_command([*ecc, "remove", str(demo), "--pack", "python-fastapi", "--json"], env=env)
         if not remove.get("dry_run"):
             raise SystemExit("remove preview was not dry-run")
-        apply = _json_command([*ecc, "apply", str(plan_file), "--dry-run", "--json"], env=env)
-        if apply.get("applied"):
-            raise SystemExit("apply --dry-run reported applied=true")
+        apply = _json_command([*ecc, "apply", str(plan_file), "--yes", "--skip-gsd-check", "--json"], env=env, cwd=demo)
+        if not apply.get("applied"):
+            raise SystemExit("apply --yes did not apply bundled project files")
+        if not (demo / ".claude" / "ecc-sources.lock.json").exists():
+            raise SystemExit("apply --yes did not write the project source lock")
+        post_apply = _json_command([*ecc, "status", str(demo), "--json"], env=env)
+        if post_apply.get("last_receipt", {}).get("operation_id") != apply.get("operation_id"):
+            raise SystemExit("status JSON did not report the apply receipt")
+        doctor = _json_command([*ecc, "doctor", str(demo), "--json"], env=env)
+        if doctor.get("summary", {}).get("FAIL"):
+            raise SystemExit("doctor reported hard failures after apply")
+        rollback = _json_command(
+            [*ecc, "rollback", str(demo), "--operation-id", str(apply["operation_id"]), "--json"],
+            env=env,
+        )
+        if int(rollback.get("restored", 0)) <= 0:
+            raise SystemExit("rollback did not restore any apply writes")
+        if (demo / ".claude" / "ecc-sources.lock.json").exists():
+            raise SystemExit("rollback did not remove the project source lock")
 
 
 def main(argv: list[str] | None = None) -> int:

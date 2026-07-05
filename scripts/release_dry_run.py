@@ -37,7 +37,7 @@ def main() -> int:
         check_wheel_contents.check_wheel(dist)
         cli_smoke.smoke(dist)
         shutil.copytree(dist, ROOT / "dist", dirs_exist_ok=True)
-    print("release dry-run passed; review dist/ and tag v0.2.0-alpha.0 after final approval")
+    print("release dry-run passed; review dist/ and tag v0.2.0-alpha.1 after final approval")
     return 0
 
 

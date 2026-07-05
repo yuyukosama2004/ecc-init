@@ -120,12 +120,12 @@ def test_release_scripts_detect_required_wheel_contents(tmp_path: Path) -> None:
     try:
         import check_wheel_contents
 
-        wheel = tmp_path / "ecc_init-0.2.0a0-py3-none-any.whl"
+        wheel = tmp_path / "ecc_init-0.2.0a1-py3-none-any.whl"
         with zipfile.ZipFile(wheel, "w") as archive:
             for suffix in check_wheel_contents.REQUIRED_SUFFIXES:
                 archive.writestr(suffix, "x")
-            archive.writestr("ecc_init-0.2.0a0.dist-info/METADATA", "Name: ecc-init\n")
-            archive.writestr("ecc_init-0.2.0a0.dist-info/entry_points.txt", "[console_scripts]\necc-init = ecc_init.cli:main\n")
+            archive.writestr("ecc_init-0.2.0a1.dist-info/METADATA", "Name: ecc-init\n")
+            archive.writestr("ecc_init-0.2.0a1.dist-info/entry_points.txt", "[console_scripts]\necc-init = ecc_init.cli:main\n")
 
         check_wheel_contents.check_wheel(wheel)
     finally:
@@ -154,6 +154,25 @@ def test_cli_smoke_falls_back_to_module_when_console_script_is_absent(tmp_path: 
             pass
 
 
+def test_cli_smoke_env_removes_pythonpath(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+    try:
+        import cli_smoke
+
+        monkeypatch.setenv("PYTHONPATH", "src")
+        env = cli_smoke._smoke_env(tmp_path)
+
+        assert "PYTHONPATH" not in env
+        assert env["ECC_INIT_HOME"] == str(tmp_path / "ecc-home")
+        assert env["CLAUDE_HOME"] == str(tmp_path / "claude-home")
+    finally:
+        try:
+            sys.path.remove(str(scripts_dir))
+        except ValueError:
+            pass
+
+
 def test_release_version_metadata_matches_package() -> None:
     import re
     import ecc_init
@@ -162,7 +181,7 @@ def test_release_version_metadata_matches_package() -> None:
     version = re.search(r'^version = "([^"]+)"$', content, flags=re.MULTILINE)
 
     assert version is not None
-    assert version.group(1) == ecc_init.__version__ == "0.2.0a0"
+    assert version.group(1) == ecc_init.__version__ == "0.2.0a1"
 
 
 def test_phase_11_release_docs_and_ci_files_exist() -> None:

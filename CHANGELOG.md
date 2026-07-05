@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Bumped the release-gate package metadata to `0.2.0a1` and extended wheel CLI smoke to run the bundled apply/status/doctor/rollback loop.
 - Bumped the alpha package version to `0.2.0a0` and made `ecc-init init` default to the GSD declarative plan, with legacy writes kept behind `--legacy`.
 - Added phase 11 release hardening: GitHub Actions CI matrix, nightly network E2E workflow, wheel content and CLI smoke scripts, release dry-run script, security/package tests, `.gitignore`, and release documentation.
 - Documented `0.1.x` as the legacy initialization line and `0.2.0` as the planned GSD-core architecture line.

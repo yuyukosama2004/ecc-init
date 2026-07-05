@@ -6,7 +6,7 @@
       "kind": "bundled",
       "repository": "https://github.com/yuyukosama2004/ecc-init",
       "package": null,
-      "version": "0.2.0a0",
+      "version": "0.2.0a1",
       "commit": null,
       "path": "src/ecc_init/resources",
       "license_id": "MIT",

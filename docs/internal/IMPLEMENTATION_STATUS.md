@@ -1,13 +1,14 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 6, bundled apply E2E fixtures
-- Batch: 2026-07-05 bundled E2E release-gating fixtures
+- Phase: Post-alpha batch 7, 0.2.0a1 release gate
+- Batch: 2026-07-05 release dry-run, wheel smoke, and pipx gate
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
 
 ## Scope
 - In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; transactional apply GSD config sync for existing `.planning/config.json`; `.claude/ecc-sources.lock.json`; apply operation receipts including config changes; apply rollback by operation id; read-only `status --json` and `doctor --json` audit reporting for GSD runtime, source lock, receipt, installed/planned Packs, plan/apply consistency, managed-file dirtiness, and apply readiness; bundled E2E fixtures for empty, FastAPI+LangGraph, React+Vite, and existing-GSD-config project flows; release-gating assertions that ordinary E2E remains bundled/source-lock/receipt/rollback based; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, existing GSD config sync, `--no-sync-gsd`, user-file preservation, rollback, read-only audit behavior, and bundled E2E flows.
+- In scope, release-gate addendum: promote the next alpha to `0.2.0a1`; run release dry-run, wheel content check, wheel CLI smoke, and pipx smoke; ensure release smoke exercises bundled apply/status/doctor/rollback instead of apply validate-only.
 - Out of scope: copying, vendoring, forking, or modifying GSD Core; real external_cli/Anthropic/Vercel/UI UX Pro Max installs; adding new Packs; global component writes; switching default Packs away from bundled fallbacks; GitHub archive directory projection; creating `.planning/config.json` when GSD has not initialized the project; deleting user files; executing unpinned installers in tests.
 
 ## Baseline
@@ -158,6 +159,9 @@
 - [x] Added release-gating E2E assertions that ordinary bundled flows lock only the `bundled` source, avoid `CLAUDE_HOME` global writes, write Source Lock/receipt/state, and rollback generated files.
 - [x] Added existing-GSD-config E2E coverage proving apply syncs `agent_skills` while preserving explicit user config values and rollback restores the original config.
 - [x] Updated E2E evidence docs so `apply` is no longer described as validate-only.
+- [x] Bumped package, runtime, bundled registry, release script, release tests, README, and E2E evidence docs to `0.2.0a1`.
+- [x] Extended release wheel CLI smoke so it clears inherited `PYTHONPATH`, applies bundled project files with `--yes --skip-gsd-check`, verifies Source Lock/status/doctor output, and rolls back by operation id.
+- [x] Kept the release-gate smoke within bundled project writes only; no real external CLI, Anthropic, Vercel, or GSD Core install is performed.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -370,6 +374,11 @@
 - Evidence: Phase G requires real user-path coverage for plan/apply/status/doctor/rollback while ordinary CI must not install GSD or run network-backed source behavior.
 - Consequence: `tests/test_e2e_apply_bundled.py` covers the project-level closed loop without invoking external installers, downloading sources, or writing global GSD runtime files.
 
+- ID: D-2026-07-05-05
+- Decision: Promote the next release-gate build to `0.2.0a1`, not beta.
+- Evidence: Bundled apply, fixed GitHub archive apply, audit status, and bundled E2E closure are in place, but broader source update/remove-file behavior and real third-party installer integrations remain out of scope.
+- Consequence: Release packaging can verify the closed loop as another alpha while beta preparation waits for the remaining source lifecycle boundaries.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -464,6 +473,12 @@
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `138 passed, 4 skipped` |
 | `python -m compileall -q src scripts` | Passed | compiled source and scripts after bundled E2E fixture changes |
 | `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests/test_security_release.py tests/test_e2e_apply_bundled.py` | Passed | `13 passed, 2 skipped` |
+| `$env:PYTHONPATH='src'; python scripts\release_dry_run.py` | Passed | built `ecc_init-0.2.0a1-py3-none-any.whl`, checked wheel contents, and ran wheel CLI smoke through bundled apply/status/doctor/rollback |
+| `python -m pipx install . --force` with temporary `PIPX_HOME`/`PIPX_BIN_DIR` | Passed | installed `ecc-init 0.2.0a1`; `ecc-init --version` returned `ecc-init 0.2.0a1` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `139 passed, 4 skipped` |
+| `python -m compileall -q src scripts` | Passed | compiled source and scripts after `0.2.0a1` release-gate changes |
+| `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7; `NOTICE.md` and package metadata now carry the release attribution record.
@@ -478,9 +493,9 @@
 - `init --yes` now routes to project-level apply and can install bundled project files; it still does not install GSD Core unless `--install-gsd` is explicit.
 - `apply --install-gsd --yes` can invoke the pinned GSD installer explicitly, but the device/runtime-level GSD install remains outside project file rollback.
 - Apply now transactionally syncs existing `.planning/config.json`, but does not initialize missing GSD config; users still need GSD project initialization before config sync can write.
-- `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in 0.2.0a0.
+- `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in `0.2.0a1`.
 - `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
 ## Next permitted batch
-- Run the release-gate batch: release dry-run, wheel content check, pipx smoke, and documentation/version decision for `0.2.0a1` vs beta-prep.
-- Keep broader source update/remove-file behavior out of scope until bundled E2E and release gates remain green.
+- Prepare the `v0.2.0-alpha.1` release tag after maintainer approval, or continue with the next explicitly scoped source lifecycle batch.
+- Keep broader source update/remove-file behavior, archive directory projection, and real third-party installers out of scope until a new plan authorizes them.

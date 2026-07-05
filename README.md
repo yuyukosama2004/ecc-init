@@ -12,7 +12,7 @@
 - 更新前备份，使用三方合并保留本地修改；
 - 冲突时保留本地版本，并生成 `.ecc-upstream` 和 `.ecc-diff`。
 
-当前版本为 **0.2.0a0 Alpha**，用于验证 GSD-first 架构、迁移路径和发布流程。
+当前版本为 **0.2.0a1 Alpha**，用于验证 GSD-first 架构、迁移路径和发布流程。
 
 ## 路线状态
 
@@ -215,7 +215,7 @@ ecc-init init . --legacy --no-sync
 
 ## 生成结构
 
-The structure below applies to `ecc-init init --legacy`. The 0.2.0a0 default `init` path previews the GSD declarative plan instead of writing these legacy files.
+The structure below applies to `ecc-init init --legacy`. The 0.2.0a1 default `init` path previews the GSD declarative plan instead of writing these legacy files.
 
 全局：
 
