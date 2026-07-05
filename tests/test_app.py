@@ -98,6 +98,6 @@ def test_doctor_reports_resources_and_paths(tmp_path: Path, monkeypatch) -> None
 
     checks = doctor(project)
 
-    by_label = {label: (ok, detail) for label, ok, detail in checks}
+    by_label = {check.label: (check.ok, check.detail) for check in checks}
     assert by_label["当前项目目录"][0] is True
     assert by_label["内置清单"] == (True, "manifest.json")

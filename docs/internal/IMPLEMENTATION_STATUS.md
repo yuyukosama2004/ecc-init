@@ -1,8 +1,8 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 9, 0.2.0a1 P0 fix & hardening
-- Batch: 2026-07-05 CLAUDE_CODE_FIXLIST_0.2.0A1.md P0 + 关键 P1
+- Phase: Post-alpha batch 10, 0.2.0a1 Alpha 收口
+- Batch: 2026-07-05 CLAUDE_CODE_FIXLIST_ROUND2_0.2.0A1.md 全量 P0
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
 - Verified: 2026-07-05 Asia/Shanghai
@@ -177,6 +177,11 @@
 - [x] P2-01: Added "0.2.0a1 Scope & Limitations" table to `docs/how-to/apply-packs.md` documenting GitHub archive single-file only, no real third-party installs, remove config-only, and missing .planning/config.json behavior.
 - [x] P2-02: Added "Future: File-Level Remove" section to `docs/how-to/audit-and-rollback.md` documenting the four preconditions for safe file deletion.
 - [x] P2-03: Created `docs/e2e/manual-alpha-smoke.md` with 5 scenarios: empty, FastAPI+LangGraph, React+Vite, existing GSD config, and dry-run previews.
+- [x] Round2 P0-01: Enhanced `init --yes` human output with apply operation_id, backup_id, rollback command, files written/skipped counts, source lock path, receipt path, partial packs summary, and skipped components count.
+- [x] Round2 P0-02: Added `_build_pack_state()` to persist per-pack status (`applied`/`partial`/`skipped`) with `components_applied` and `components_skipped` into state v2; `_pack_summary()` prefers persisted status, falling back to legacy managed_files derivation.
+- [x] Round2 P0-03: Introduced `applied_with_warnings` status for non-blocking skips (non-project scope, optional, GSD warnings); renamed `has_required_skipped`→`has_blocking_skipped`; added `has_non_blocking_skipped`; CLI exit code 0 for `applied_with_warnings`, exit 4 for `partial`/`failed`/`blocked`.
+- [x] Round2 P0-04: Hardened `_has_verified_markers` to check specific known GSD command filenames (gsd-new-project.md, gsd-discuss-phase.md, etc.) instead of wildcard globs; `.planning` directory alone no longer triggers `installed_verified`; added tests for unrelated `gsd-demo.md` and planning-only config.
+- [x] Round2 P0-05: Introduced `DoctorCheck` dataclass with `check_id`, `severity_if_failed` fields; `doctor()` now returns `list[DoctorCheck]` with stable named check_ids (`doctor:python`, `doctor:gsd-runtime`, etc.); removed hard-coded index logic from `_doctor_payload()`; updated test_app and test_frontend to use attribute access.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -573,7 +578,14 @@
 | `python -m compileall -q src scripts` | Passed | No compilation errors |
 | `git diff --check` | Passed | CRLF normalization warnings only (Windows) |
 
+## Batch 10 verification (2026-07-05 Round 2 收口)
+| Command | Result | Evidence |
+|---|---|---|
+| `python -m pytest` (bare) | 149 passed, 4 skipped | Full suite green |
+| `python -m compileall -q src scripts` | Passed | No compilation errors |
+| `git diff --check` | Passed | CRLF normalization warnings only (Windows) |
+
 ## Next permitted batch
 - Tag `v0.2.0-alpha.1` release after maintainer approval.
-- All P0, P1, and P2 items from CLAUDE_CODE_FIXLIST_0.2.0A1.md are complete.
-- Keep external_cli/Anthropic/Vercel real installs, new Packs, and .planning/config.json auto-creation out of scope until a new plan authorizes them.
+- Round 1 and Round 2 fix lists are fully complete.
+- Keep external_cli/Anthropic/Vercel real installs, new Packs, and .planning/config.json auto-creation out of scope.

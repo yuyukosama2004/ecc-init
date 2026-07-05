@@ -339,15 +339,23 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
                 _write_gsd_config_sync(transaction, config_sync_report)
             if locks:
                 _write_source_lock(paths, transaction, locks)
-            _write_project_state(paths, transaction, plan, install_report.files_written, locks, workflow_status)
+            pack_state = _build_pack_state(plan, registry, install_report)
+            _write_project_state(
+                paths, transaction, plan,
+                install_report.files_written, locks, workflow_status,
+                pack_state=pack_state,
+            )
 
             # Determine receipt result and apply status
-            if install_report.has_required_skipped:
+            if errors:
+                receipt_result = "failed"
+                apply_status = "failed"
+            elif install_report.has_blocking_skipped:
                 receipt_result = "partial_success"
                 apply_status = "partial"
-            elif install_report.has_any_skipped:
+            elif install_report.has_non_blocking_skipped or install_report.warnings:
                 receipt_result = "success"
-                apply_status = "applied"
+                apply_status = "applied_with_warnings"
             else:
                 receipt_result = "success"
                 apply_status = "applied"
@@ -544,6 +552,57 @@ def _compute_pack_statuses(
     return packs_applied, packs_partial, packs_skipped
 
 
+def _build_pack_state(
+    plan: InstallPlan,
+    registry,
+    install_report,
+) -> dict[str, Any]:
+    """Build a per-pack status dict for persistence in state v2."""
+    written_components: dict[str, set[str]] = {}
+    skipped_pack_components: dict[str, list[dict[str, Any]]] = {}
+
+    for item in install_report.files_written:
+        pack_id = item.owner.replace("pack:", "", 1) if item.owner.startswith("pack:") else None
+        if pack_id and pack_id in plan.packs:
+            written_components.setdefault(pack_id, set()).add(item.component_id)
+
+    for item in install_report.files_skipped:
+        pack_ids = [
+            pack_id
+            for pack_id in plan.packs
+            if pack_id in registry.packs and item.component_id in registry.packs[pack_id].components
+        ]
+        for pack_id in pack_ids:
+            skipped_pack_components.setdefault(pack_id, []).append(item.to_dict())
+
+    result: dict[str, Any] = {}
+    for pack_id in plan.packs:
+        pack = registry.packs.get(pack_id)
+        if pack is None:
+            result[pack_id] = {"version": 1, "status": "unknown", "components_applied": [], "components_skipped": []}
+            continue
+        expected = set(pack.components)
+        written = written_components.get(pack_id, set())
+        skipped = skipped_pack_components.get(pack_id, [])
+        if not expected:
+            status = "declaration_only"
+        elif not written and not skipped:
+            status = "skipped"
+        elif not written:
+            status = "skipped"
+        elif skipped:
+            status = "partial"
+        else:
+            status = "applied"
+        result[pack_id] = {
+            "version": 1,
+            "status": status,
+            "components_applied": sorted(written),
+            "components_skipped": skipped,
+        }
+    return result
+
+
 def _write_project_state(
     paths: AppPaths,
     transaction: Transaction,
@@ -551,6 +610,7 @@ def _write_project_state(
     files_written: list[Any],
     locks: dict[str, SourceLock],
     workflow_status: dict[str, Any] | None,
+    pack_state: dict[str, Any] | None = None,
 ) -> None:
     state = _load_project_state(paths, plan)
     managed_files = state.setdefault("managed_files", {})
@@ -574,7 +634,7 @@ def _write_project_state(
                 "installed": bool(workflow_status and workflow_status.get("status") in {"installed_verified", "installed_unverified"}),
                 "verified": bool(workflow_status and workflow_status.get("status") == "installed_verified"),
             },
-            "packs": {pack_id: {"version": 1} for pack_id in plan.packs},
+            "packs": pack_state if pack_state is not None else {pack_id: {"version": 1} for pack_id in plan.packs},
             "source_locks": {source_id: lock.to_dict() for source_id, lock in locks.items()},
             "last_operation_id": transaction.operation_id,
             "last_initialized_at": now_iso(),

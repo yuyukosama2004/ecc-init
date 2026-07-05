@@ -322,29 +322,34 @@ def _pack_summary(project_state: dict[str, Any], plan_audit: dict[str, Any], reg
         for component_id in pack.components:
             component_pack[component_id] = pack_id
 
-    # Collect installed components per pack from managed_files
-    pack_components: dict[str, set[str]] = {}
-    for path_str, entry in managed_files.items():
-        if not isinstance(entry, dict):
-            continue
-        component_id = entry.get("component_id")
-        if not component_id:
-            continue
-        pack_id = component_pack.get(component_id)
-        if pack_id is None:
-            continue
-        pack_components.setdefault(pack_id, set()).add(component_id)
-
     installed: dict[str, dict[str, Any]] = {}
     for pack_id in sorted(raw_installed):
+        pack_entry = raw_installed[pack_id]
+        if isinstance(pack_entry, dict) and "status" in pack_entry:
+            # Prefer persisted pack state (new schema)
+            installed[pack_id] = {
+                "version": pack_entry.get("version", 1),
+                "status": pack_entry.get("status", "unknown"),
+                "components_applied": pack_entry.get("components_applied", []),
+                "components_skipped": pack_entry.get("components_skipped", []),
+            }
+            continue
+
+        # Fallback: derive from managed_files (legacy schema)
         pack = registry.packs.get(pack_id)
         expected = set(pack.components) if pack else set()
-        written = pack_components.get(pack_id, set())
-        missing = expected - written
-        version = raw_installed[pack_id].get("version", 1) if isinstance(raw_installed[pack_id], dict) else 1
+        pack_components_set: set[str] = set()
+        for path_str, entry in managed_files.items():
+            if not isinstance(entry, dict):
+                continue
+            component_id = entry.get("component_id")
+            if component_id and component_pack.get(component_id) == pack_id:
+                pack_components_set.add(component_id)
+        missing = expected - pack_components_set
+        version = pack_entry.get("version", 1) if isinstance(pack_entry, dict) else 1
         if not expected:
             status = "declaration_only"
-        elif not written:
+        elif not pack_components_set:
             status = "skipped"
         elif missing:
             status = "partial"
@@ -353,8 +358,8 @@ def _pack_summary(project_state: dict[str, Any], plan_audit: dict[str, Any], reg
         installed[pack_id] = {
             "version": version,
             "status": status,
-            "components_applied": sorted(written),
-            "components_skipped": sorted(missing),
+            "components_applied": sorted(pack_components_set),
+            "components_skipped": [{"component_id": c, "reason": "legacy: derived from managed_files"} for c in sorted(missing)],
         }
 
     return {
@@ -1031,7 +1036,84 @@ def project_status(project_root: Path | None = None) -> dict[str, Any]:
     }
 
 
-def doctor(project_root: Path | None = None, *, mode: str = "preflight") -> list[tuple[str, bool, str]]:
+@dataclass(frozen=True)
+class DoctorCheck:
+    check_id: str
+    label: str
+    ok: bool
+    detail: str
+    severity_if_failed: str = "fail"  # "fail" | "warn"
+
+
+def doctor(project_root: Path | None = None, *, mode: str = "preflight") -> list[DoctorCheck]:
+    """Run environment and project health checks.
+
+    mode='preflight': suitable before first apply — missing Packs/Source Lock/Receipt are WARN not FAIL.
+    mode='audit': suitable after apply — missing audit artifacts are FAIL.
+    """
+    paths = AppPaths.build(project_root)
+    strict = mode == "audit"
+    checks: list[DoctorCheck] = []
+
+    def _add(check_id: str, label: str, ok: bool, detail: str, severity_if_failed: str = "fail") -> None:
+        checks.append(DoctorCheck(check_id, label, ok, detail, severity_if_failed))
+
+    _add("doctor:python", "Python 版本", sys.version_info >= (3, 10), sys.version.split()[0], "fail")
+    _add("doctor:git", "Git 三方合并", shutil.which("git") is not None, shutil.which("git") or "未找到；冲突时将保留本地版本", "warn")
+
+    for check_id, label, path in (
+        ("doctor:ecc-home", "ecc-init 数据目录", paths.ecc_home),
+        ("doctor:claude-home", "Claude 配置目录", paths.claude_home),
+        ("doctor:project-root", "当前项目目录", paths.project_root),
+    ):
+        writable, detail = _writable_path_check(path)
+        _add(check_id, label, writable, detail, "fail")
+
+    manifest = read_manifest()
+    _add("doctor:manifest", "内置清单", bool(manifest.get("global_skills") and manifest.get("project_skills")), "manifest.json", "fail")
+    gsd_config = paths.project_root / ".planning" / "config.json"
+    _add("doctor:gsd-config-bridge", "GSD config bridge", True, f"{gsd_config} ({'已初始化' if gsd_config.exists() else '未初始化'})", "warn")
+    default_policy = POLICY_PROFILES["default"]
+    _add("doctor:gsd-hard-config", "GSD hard-enforced config", True, "parallelization.*, workflow.use_worktrees, workflow.subagent_timeout, workflow.node_repair_budget", "warn")
+    _add("doctor:gsd-advisory", "GSD advisory-only policy", True, ", ".join(sorted(default_policy.advisory)), "warn")
+    status = project_status(paths.project_root)
+    runtime = status["workflow"]["runtime"]
+    runtime_command = ""
+    if runtime.get("commands"):
+        runtime_command = " | install preview: " + " ".join(runtime["commands"][0].get("args", []))
+    gsd_runtime_ok = runtime.get("status") in {"installed_verified", "installed_unverified"}
+    _add("doctor:gsd-runtime", "GSD runtime", gsd_runtime_ok if strict else True, f"{runtime.get('status', 'unknown')}{runtime_command}", "warn")
+    packs = status["packs"]
+    installed_packs = packs["installed"]
+    has_packs = bool(installed_packs)
+    _add("doctor:installed-packs", "Installed Packs", has_packs if strict else True, _installed_packs_summary(installed_packs), "warn")
+    source_lock = status["source_lock"]
+    source_lock_ok = source_lock["status"] == "present" and source_lock["valid"]
+    _add("doctor:source-lock", "Project source lock", source_lock_ok if strict else True, f"{source_lock['status']} ({source_lock['source_count']} source(s)) at {source_lock['path']}", "warn")
+    receipt = status["last_receipt"]
+    receipt_ok = receipt["status"] == "present" and receipt["valid"]
+    _add("doctor:receipt", "Latest apply receipt", receipt_ok if strict else True, f"{receipt['status']} ({receipt.get('operation_id') or 'none'})", "warn")
+    readiness = status["apply_readiness"]
+    _add("doctor:apply-readiness", "Apply readiness", readiness["ready"], readiness["status"] if readiness["ready"] else "; ".join(readiness["blockers"]), "fail")
+    plan_consistency = readiness["plan_consistency"]
+    _add("doctor:plan-consistency", "Plan/apply consistency", plan_consistency["status"] in {"matches", "not_applied"}, plan_consistency["status"], "warn")
+    for label, ok, detail in frontend_doctor_checks(paths.project_root):
+        check_id = "doctor:frontend-" + label.lower().replace(" ", "-")
+        _add(check_id, label, ok, detail, "warn")
+    return checks
+
+
+def _installed_packs_summary(installed: dict[str, Any]) -> str:
+    if not installed:
+        return "none installed for this project"
+    lines: list[str] = []
+    for pack_id, info in sorted(installed.items()):
+        if isinstance(info, dict):
+            status = info.get("status", "unknown")
+            lines.append(f"{pack_id}: {status}")
+        else:
+            lines.append(pack_id)
+    return ", ".join(lines)
     """Run environment and project health checks.
 
     mode='preflight': suitable before first apply — missing Packs/Source Lock/Receipt are WARN not FAIL.

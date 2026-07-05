@@ -105,7 +105,7 @@ def test_init_yes_uses_apply_not_workflow_update(tmp_path: Path, monkeypatch, ca
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["gsd_install"] is None
-    assert payload["apply"]["status"] == "applied"
+    assert payload["apply"]["status"] in {"applied", "applied_with_warnings"}
     assert payload["apply"]["applied"] is True
     assert (project / "docs" / "PROJECT_OVERVIEW.md").exists()
 
@@ -129,7 +129,7 @@ def test_apply_yes_installs_bundled_project_files_state_lock_and_receipt(
     state = json.loads((project / ".claude" / "ecc-init-state.json").read_text(encoding="utf-8"))
     source_lock = json.loads((project / ".claude" / "ecc-sources.lock.json").read_text(encoding="utf-8"))
 
-    assert payload["status"] == "applied"
+    assert payload["status"] in {"applied", "applied_with_warnings"}
     assert payload["applied"] is True
     assert payload["operation_id"]
     assert payload["backup_id"]
@@ -193,7 +193,7 @@ def test_apply_yes_syncs_existing_gsd_config_and_rollback_restores_it(
     written = json.loads(config.read_text(encoding="utf-8"))
     receipts = list((tmp_path / "ecc-home" / "operations").glob("*/receipt.json"))
 
-    assert payload["status"] == "applied"
+    assert payload["status"] in {"applied", "applied_with_warnings"}
     assert payload["config_report"]["initialized"] is True
     assert payload["config_report"]["changed"] is True
     assert written["parallelization"]["enabled"] is False
@@ -231,7 +231,7 @@ def test_apply_yes_no_sync_gsd_leaves_existing_config_unchanged(
     assert main(["apply", str(plan_path), "--yes", "--skip-gsd-check", "--no-sync-gsd", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
 
-    assert payload["status"] == "applied"
+    assert payload["status"] in {"applied", "applied_with_warnings"}
     assert payload["config_report"] is None
     assert json.loads(config.read_text(encoding="utf-8")) == original_config
 
@@ -321,7 +321,7 @@ def test_apply_yes_installs_fixed_github_archive_component_from_offline_cache(
     receipts = list((tmp_path / "ecc-home" / "operations").glob("*/receipt.json"))
     source_lock = json.loads((project / ".claude" / "ecc-sources.lock.json").read_text(encoding="utf-8"))
 
-    assert report.status == "applied"
+    assert report.status in {"applied", "applied_with_warnings"}
     assert target.read_text(encoding="utf-8") == "github skill\n"
     assert source_lock["sources"]["github-test"]["resolved_ref"] == COMMIT
     assert source_lock["sources"]["github-test"]["source_path"] == "skills/python"
@@ -420,7 +420,7 @@ def test_apply_yes_skips_missing_optional_github_archive_without_locking_source(
 
     source_lock = json.loads((project / ".claude" / "ecc-sources.lock.json").read_text(encoding="utf-8"))
 
-    assert report.status == "applied"
+    assert report.status in {"applied", "applied_with_warnings"}
     assert bundled_target.exists()
     assert not optional_target.exists()
     assert any("skipped optional component optional-github-component" in warning for warning in report.warnings)

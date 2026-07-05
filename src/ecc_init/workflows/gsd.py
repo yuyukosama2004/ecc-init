@@ -184,29 +184,32 @@ class GsdWorkflowAdapter:
             )
         ]
 
+    # Known GSD command files that indicate a real GSD Core runtime install.
+    _GSD_COMMAND_MARKERS: tuple[str, ...] = (
+        "commands/gsd-new-project.md",
+        "commands/gsd-discuss-phase.md",
+        "commands/gsd-plan-phase.md",
+        "commands/gsd-execute-phase.md",
+        "commands/gsd-verify-work.md",
+        "commands/gsd-ship.md",
+    )
+
     def _has_verified_markers(self, paths: AppPaths, options: GsdInstallOptions) -> bool:
         root = self._target_root(paths, options)
         if not root.exists():
             return False
-        planning_dir = root / ".planning" if options.runtime == "claude" and options.scope == "project" else None
-        if planning_dir and planning_dir.exists():
+        # Check for specific known GSD command artifacts.
+        # A wildcard glob is intentionally NOT used here to prevent
+        # unrelated user files (e.g. commands/gsd-demo.md) from triggering a false verified.
+        commands_dir = root / "commands"
+        if commands_dir.is_dir():
+            for marker in self._GSD_COMMAND_MARKERS:
+                if (root / marker).is_file():
+                    return True
+        # agents/* or skills/gsd-* directories are weaker signals
+        # but still indicate a GSD install when commands are present too.
+        if any((root / "agents").glob("gsd*")):
             return True
-        # Check for GSD-installed artifacts under the install root.
-        # Patterns cover both direct files (e.g. commands/gsd-new-project.md)
-        # and the planning directory which GSD always creates during init.
-        marker_patterns: tuple[tuple[str, bool], ...] = (
-            (".planning", True),          # directory created by GSD init
-            ("commands/gsd*", False),
-            ("agents/gsd*", False),
-            ("skills/gsd-*", False),
-            ("hooks/gsd*", False),
-        )
-        for pattern, is_dir in marker_patterns:
-            for candidate in root.glob(pattern):
-                if is_dir and candidate.is_dir():
-                    return True
-                if not is_dir and candidate.is_file():
-                    return True
         return False
 
     def status(self, paths: AppPaths, *, runtime: str = "claude", scope: str = "global") -> WorkflowResult:

@@ -179,24 +179,8 @@ def test_gsd_inspect_and_remove_are_safe_strategy_only(tmp_path: Path) -> None:
     assert any("strategy-only" in warning for warning in remove.warnings)
 
 
-def test_gsd_status_verified_when_planning_dir_exists(tmp_path: Path, monkeypatch) -> None:
-    """Global Claude GSD is verified when .planning directory exists under Claude home."""
-    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
-    claude_home = tmp_path / "claude"
-    claude_home.mkdir()
-    (claude_home / ".planning").mkdir(parents=True)
-    monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
-    paths = AppPaths.build(tmp_path / "project")
-    (tmp_path / "project").mkdir()
-
-    adapter = GsdWorkflowAdapter(FakeRunner())
-    result = adapter.status(paths, runtime="claude", scope="global")
-
-    assert result.status == "installed_verified"
-
-
-def test_gsd_status_verified_when_command_marker_exists(tmp_path: Path, monkeypatch) -> None:
-    """Global Claude GSD is verified when commands/gsd-new-project.md exists."""
+def test_gsd_status_global_verified_for_known_gsd_command_marker(tmp_path: Path, monkeypatch) -> None:
+    """Global Claude GSD is verified when a known GSD command file exists."""
     monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
     claude_home = tmp_path / "claude"
     claude_home.mkdir()
@@ -229,12 +213,46 @@ def test_gsd_status_not_verified_for_unrelated_files(tmp_path: Path, monkeypatch
     assert result.status == "not_installed"
 
 
+def test_gsd_status_not_verified_for_unrelated_gsd_named_file(tmp_path: Path, monkeypatch) -> None:
+    """A user-created commands/gsd-demo.md should NOT trigger verified status."""
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    claude_home = tmp_path / "claude"
+    claude_home.mkdir()
+    (claude_home / "commands").mkdir(parents=True)
+    (claude_home / "commands" / "gsd-demo.md").write_text("user file")
+    monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
+    (tmp_path / "project").mkdir()
+    paths = AppPaths.build(tmp_path / "project")
+
+    adapter = GsdWorkflowAdapter(FakeRunner())
+    result = adapter.status(paths, runtime="claude", scope="global")
+
+    assert result.status == "not_installed"
+
+
+def test_gsd_status_planning_alone_not_verified_global(tmp_path: Path, monkeypatch) -> None:
+    """.planning directory alone does NOT prove GSD runtime installed in global scope."""
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    claude_home = tmp_path / "claude"
+    claude_home.mkdir()
+    (claude_home / ".planning").mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
+    (tmp_path / "project").mkdir()
+    paths = AppPaths.build(tmp_path / "project")
+
+    adapter = GsdWorkflowAdapter(FakeRunner())
+    result = adapter.status(paths, runtime="claude", scope="global")
+
+    assert result.status == "not_installed"
+
+
 def test_gsd_status_project_scope_uses_project_claude_root(tmp_path: Path, monkeypatch) -> None:
-    """Project-scope GSD verification checks project/.claude, not global home."""
+    """Project-scope GSD verification checks project/.claude with command markers."""
     monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
     project = tmp_path / "project"
     project.mkdir()
-    (project / ".claude" / ".planning").mkdir(parents=True)
+    (project / ".claude" / "commands").mkdir(parents=True)
+    (project / ".claude" / "commands" / "gsd-new-project.md").write_text("")
     global_home = tmp_path / "global-claude"
     global_home.mkdir()
     monkeypatch.setenv("CLAUDE_HOME", str(global_home))
@@ -244,3 +262,20 @@ def test_gsd_status_project_scope_uses_project_claude_root(tmp_path: Path, monke
     result = adapter.status(paths, runtime="claude", scope="project")
 
     assert result.status == "installed_verified"
+
+
+def test_gsd_status_project_config_alone_not_runtime_verified(tmp_path: Path, monkeypatch) -> None:
+    """Project scope with only .planning/config.json is not runtime verified."""
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".claude" / ".planning").mkdir(parents=True)
+    (project / ".claude" / ".planning" / "config.json").write_text("{}")
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "global-claude"))
+    (tmp_path / "global-claude").mkdir()
+    paths = AppPaths.build(project)
+
+    adapter = GsdWorkflowAdapter(FakeRunner())
+    result = adapter.status(paths, runtime="claude", scope="project")
+
+    assert result.status == "not_installed"

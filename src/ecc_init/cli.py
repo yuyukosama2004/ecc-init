@@ -387,17 +387,17 @@ def _print_migration_report(args) -> int:
 def _doctor_payload(path: Path, mode: str = "preflight") -> dict[str, object]:
     checks = []
     summary = {"PASS": 0, "WARN": 0, "FAIL": 0}
-    hard_fail_indexes = {0, 2, 3, 4, 5}
-    for index, (label, ok, detail) in enumerate(doctor(path, mode=mode)):
-        status = "PASS" if ok else ("FAIL" if index in hard_fail_indexes else "WARN")
+    for check in doctor(path, mode=mode):
+        status = "PASS" if check.ok else ("FAIL" if check.severity_if_failed == "fail" else "WARN")
         summary[status] += 1
         checks.append(
             {
-                "check_id": f"doctor:{index}",
-                "label": label,
+                "check_id": check.check_id,
+                "label": check.label,
                 "status": status,
-                "ok": ok,
-                "detail": detail,
+                "ok": check.ok,
+                "severity_if_failed": check.severity_if_failed,
+                "detail": check.detail,
             }
         )
     return {"project_root": str(Path(path).expanduser().resolve()), "mode": mode, "summary": summary, "checks": checks}
@@ -571,7 +571,7 @@ def _print_apply(args) -> int:
             print(f"[warning] {warning}")
         for error in report.errors:
             print(f"[error] {error}")
-    return 0 if report.status in {"dry_run", "applied"} and not report.errors else 4
+    return 0 if report.status in {"dry_run", "applied", "applied_with_warnings"} and not report.errors else 4
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -632,13 +632,38 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Project: {paths.project_root}")
                     print(f"GSD install: {gsd_result.status if gsd_result else 'not requested'}")
                     print(f"Apply status: {apply_report.status}")
+                    if apply_report.operation_id:
+                        print(f"Apply operation: {apply_report.operation_id}")
+                    if apply_report.backup_id:
+                        print(f"Backup: {apply_report.backup_id}")
+                    written_count = len(apply_report.files_written)
+                    skipped_count = len(apply_report.files_skipped)
+                    print(f"Files written: {written_count}")
+                    if skipped_count:
+                        print(f"Files skipped: {skipped_count}")
+                    if apply_report.sources_locked:
+                        print("Source lock: .claude/ecc-sources.lock.json")
+                    if apply_report.operation_id:
+                        print(f"Receipt: ~/.ecc-init/operations/{apply_report.operation_id}/receipt.json")
+                    if apply_report.packs_partial:
+                        print()
+                        print("Partial Packs:")
+                        for pack_id in apply_report.packs_partial:
+                            print(f"  - {pack_id}")
+                    if apply_report.files_skipped:
+                        print(f"Skipped components: {len(apply_report.files_skipped)}")
+                    if apply_report.operation_id:
+                        print()
+                        print("Rollback:")
+                        print(f"  ecc-init rollback . --operation-id {apply_report.operation_id}")
                     for warning in apply_report.warnings:
                         print(f"[warning] {warning}")
                     for error in apply_report.errors:
                         print(f"[error] {error}")
                 if gsd_result and not gsd_result.ok:
                     return 3 if gsd_result.status == "blocked_environment" else 1
-                return 0 if apply_report.applied else 4
+                success_statuses = {"applied", "applied_with_warnings"}
+                return 0 if apply_report.status in success_statuses and not apply_report.errors else 4
             else:
                 plan = build_registry_install_plan(
                     Path(args.path),

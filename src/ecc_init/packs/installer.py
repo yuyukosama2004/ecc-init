@@ -62,12 +62,18 @@ class ComponentInstallReport:
     errors: list[str] = field(default_factory=list)
 
     @property
-    def has_required_skipped(self) -> bool:
-        """Required components that were skipped for reasons other than non-project scope."""
+    def has_blocking_skipped(self) -> bool:
+        """Required project components that were skipped for user-content reasons (preserved, source error, unsupported)."""
         return any(
-            item.required and "non-project scope" not in item.reason
+            item.required
+            and "non-project scope" not in item.reason
             for item in self.files_skipped
         )
+
+    @property
+    def has_non_blocking_skipped(self) -> bool:
+        """Has skips but none are blocking (all are non-project scope or optional)."""
+        return bool(self.files_skipped) and not self.has_blocking_skipped
 
     @property
     def has_non_project_skipped(self) -> bool:
@@ -76,6 +82,11 @@ class ComponentInstallReport:
     @property
     def has_any_skipped(self) -> bool:
         return bool(self.files_skipped)
+
+    # Legacy alias for callers still using the old name
+    @property
+    def has_required_skipped(self) -> bool:
+        return self.has_blocking_skipped
 
 
 def _managed_entry(state: dict[str, Any], path: Path) -> dict[str, Any] | None:

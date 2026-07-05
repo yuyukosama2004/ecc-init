@@ -55,7 +55,7 @@ def _apply_fixture(tmp_path: Path, monkeypatch, capsys, name: str) -> tuple[Path
     status_payload = _run_json(capsys, ["status", str(project), "--json"])
     doctor_payload = _run_json(capsys, ["doctor", str(project), "--json"])
 
-    assert apply_payload["status"] == "applied"
+    assert apply_payload["status"] in {"applied", "applied_with_warnings"}
     assert apply_payload["applied"] is True
     assert apply_payload["operation_id"]
     assert {item["source_id"] for item in apply_payload["sources_locked"]} == {"bundled"}
@@ -176,7 +176,7 @@ def test_existing_gsd_config_e2e_syncs_and_rolls_back_config(
     written_config = json.loads(config_path.read_text(encoding="utf-8"))
 
     assert {"python-fastapi", "rag-python"} <= set(plan["packs"])
-    assert apply_payload["status"] == "applied"
+    assert apply_payload["status"] in {"applied", "applied_with_warnings"}
     assert apply_payload["config_report"]["initialized"] is True
     assert apply_payload["config_report"]["changed"] is True
     assert status_payload["apply_readiness"]["ready"] is True

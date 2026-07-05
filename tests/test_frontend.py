@@ -102,7 +102,7 @@ def test_frontend_doctor_reports_tool_detection(tmp_path: Path, monkeypatch) -> 
     monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
 
     checks = {label: detail for label, _ok, detail in frontend_doctor_checks(tmp_path)}
-    app_checks = {label: detail for label, _ok, detail in doctor(tmp_path)}
+    app_checks = {check.label: check.detail for check in doctor(tmp_path)}
 
     assert checks["Frontend project"] == "detected"
     assert checks["Frontend Playwright"] == "detected"
