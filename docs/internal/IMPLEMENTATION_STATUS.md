@@ -1,13 +1,13 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 4, transactional apply GSD config sync
-- Batch: 2026-07-05 apply sync-gsd integration
+- Phase: Post-alpha batch 5, read-only apply audit status
+- Batch: 2026-07-05 status/doctor apply audit integration
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
 
 ## Scope
-- In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; transactional apply GSD config sync for existing `.planning/config.json`; `.claude/ecc-sources.lock.json`; apply operation receipts including config changes; apply rollback by operation id; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, existing GSD config sync, `--no-sync-gsd`, user-file preservation, and rollback.
+- In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; transactional apply GSD config sync for existing `.planning/config.json`; `.claude/ecc-sources.lock.json`; apply operation receipts including config changes; apply rollback by operation id; read-only `status --json` and `doctor --json` audit reporting for GSD runtime, source lock, receipt, installed/planned Packs, plan/apply consistency, managed-file dirtiness, and apply readiness; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, existing GSD config sync, `--no-sync-gsd`, user-file preservation, rollback, and read-only audit behavior.
 - Out of scope: copying, vendoring, forking, or modifying GSD Core; real external_cli/Anthropic/Vercel/UI UX Pro Max installs; adding new Packs; global component writes; switching default Packs away from bundled fallbacks; GitHub archive directory projection; creating `.planning/config.json` when GSD has not initialized the project; deleting user files; executing unpinned installers in tests.
 
 ## Baseline
@@ -148,6 +148,11 @@
 - [x] Kept missing GSD config as warning-only; apply does not create `.planning/config.json`.
 - [x] Added `--no-sync-gsd` coverage to keep existing GSD config untouched when explicitly requested.
 - [x] Added rollback coverage proving apply restores a pre-existing GSD config after operation-id rollback.
+- [x] Extended `status --json` with read-only GSD runtime status, installed/planned Packs, planned/locked sources, Source Lock status, latest project receipt, plan/apply consistency, receipt consistency, and apply readiness.
+- [x] Extended human `status` with concise workflow, Pack, Source Lock, receipt, and readiness summaries.
+- [x] Extended `doctor --json` with GSD runtime, installed Packs, project Source Lock, latest apply receipt, apply readiness, and plan/apply consistency checks.
+- [x] Changed doctor path checks to probe writability through existing parents without creating missing runtime directories.
+- [x] Added status/doctor tests covering apply audit JSON after apply and no-write doctor directory probing.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -350,6 +355,11 @@
 - Evidence: GSD initializes project config through its own workflow, and the next plan requires ecc-init not to create GSD projects silently.
 - Consequence: Missing GSD config remains a warning/report state; `apply --yes` writes config only when the file already exists and `--no-sync-gsd` was not supplied.
 
+- ID: D-2026-07-05-03
+- Decision: Treat missing Source Lock and missing project receipt as read-only audit warnings before the first successful apply.
+- Evidence: New projects have not written `.claude/ecc-sources.lock.json` or an operation receipt yet, while the next plan requires status/doctor to report readiness without writing files.
+- Consequence: `status --json` and `doctor --json` can explain first-apply state without creating directories or blocking a clean project-level apply preview.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -434,6 +444,11 @@
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `131 passed, 4 skipped` |
 | `python -m compileall -q src scripts` | Passed | compiled source and scripts after apply GSD config sync changes |
 | `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests/test_lifecycle_cli.py tests/test_app.py tests/test_apply.py` | Passed | `42 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest tests/test_gsd_install_cli.py tests/test_workflows.py tests/test_sources.py tests/test_ownership.py` | Passed | `20 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `134 passed, 4 skipped` |
+| `python -m compileall -q src scripts` | Passed | compiled source and scripts after status/doctor audit changes |
+| `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7; `NOTICE.md` and package metadata now carry the release attribution record.
@@ -452,5 +467,5 @@
 - `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
 ## Next permitted batch
-- Extend `doctor` and `status --json` to report GSD runtime/source lock/receipt/apply readiness without writing files.
 - Add bundled E2E fixtures for empty, FastAPI+LangGraph, React+Vite, and existing-GSD-config project flows before expanding source behavior.
+- Add release-gating assertions around the bundled E2E fixtures before enabling any broader external source behavior.

@@ -426,6 +426,23 @@ def _print_status(args) -> int:
     print(f"Upstream ref: {status['upstream_ref'] or 'unknown'}")
     print(f"Last initialized: {status['last_initialized_at'] or 'never'}")
     print(f"Backup count: {status['backup_count']}")
+    workflow = status["workflow"]
+    planned_workflow = workflow.get("planned") or {}
+    runtime = workflow.get("runtime") or {}
+    print(
+        "Workflow: "
+        + (planned_workflow.get("id") or "unknown")
+        + f" ({planned_workflow.get('scope') or 'unknown'}); GSD runtime: {runtime.get('status') or 'unknown'}"
+    )
+    packs = status["packs"]
+    print("Installed Packs: " + (", ".join(sorted(packs["installed"])) or "none"))
+    print("Planned Packs: " + (", ".join(packs["planned"]) or "none"))
+    source_lock = status["source_lock"]
+    print(f"Source lock: {source_lock['status']} ({source_lock['source_count']} source(s))")
+    receipt = status["last_receipt"]
+    print(f"Last receipt: {receipt['status']} ({receipt.get('operation_id') or 'none'})")
+    readiness = status["apply_readiness"]
+    print(f"Apply readiness: {readiness['status']}")
     if status["conflicts"]:
         print("Conflict files:")
         for item in status["conflicts"]:

@@ -24,7 +24,7 @@ from .packs import build_registry_install_plan, load_registry
 from .packs.gsd_bridge import POLICY_PROFILES, build_gsd_config, remove_pack_agent_skills
 from .project import render_project_overview, render_project_section, structure_fingerprint
 from .resources import read_manifest, read_resource_text
-from .sources import verify_registry_sources
+from .sources import SourceLockStore, verify_registry_sources
 from .sync import fetch_upstream_skill, resolve_stable_ref
 from .util import human_bool, load_json, now_iso, read_text, sha256_text, write_json_atomic, write_text_atomic
 from .workflows import GsdWorkflowAdapter
@@ -34,6 +34,7 @@ GLOBAL_START = "<!-- ecc-init:start global -->"
 GLOBAL_END = "<!-- ecc-init:end global -->"
 PROJECT_START = "<!-- ecc-init:start project -->"
 PROJECT_END = "<!-- ecc-init:end project -->"
+SUPPORTED_APPLY_SOURCE_KINDS = {"bundled", "github_archive"}
 
 
 @dataclass
@@ -119,6 +120,297 @@ def _workflow_result_to_dict(result) -> dict[str, Any] | None:
 def _status_conflicts(paths: AppPaths) -> tuple[list[str], list[str]]:
     status = project_status(paths.project_root)
     return list(status["conflicts"]), list(status["modified_managed_files"])
+
+
+def _nearest_existing_parent(path: Path) -> Path | None:
+    current = path if path.exists() else path.parent
+    while True:
+        if current.exists():
+            return current
+        if current.parent == current:
+            return None
+        current = current.parent
+
+
+def _writable_path_check(path: Path) -> tuple[bool, str]:
+    if path.exists():
+        return os.access(path, os.W_OK), str(path)
+    parent = _nearest_existing_parent(path)
+    if parent is None:
+        return False, f"{path} (missing; no existing parent)"
+    return os.access(parent, os.W_OK), f"{path} (missing; parent {parent})"
+
+
+def _plan_audit(paths: AppPaths, registry) -> dict[str, Any]:
+    try:
+        plan = build_registry_install_plan(paths.project_root)
+    except ConfigError as exc:
+        return {
+            "valid": False,
+            "error": str(exc),
+            "workflow": None,
+            "packs": [],
+            "sources": [],
+            "unsupported_source_kinds": [],
+            "unsupported_required_source_kinds": [],
+            "component_count": 0,
+            "file_operation_count": 0,
+            "external_operation_count": 0,
+            "config_operation_count": 0,
+        }
+
+    source_ids = sorted({component.source_id for component in plan.resolved_components})
+    unsupported: list[dict[str, Any]] = []
+    unsupported_required: list[dict[str, Any]] = []
+    sources: list[dict[str, Any]] = []
+    for source_id in source_ids:
+        source = registry.sources.get(source_id)
+        kind = source.kind if source else "unknown"
+        item = {"source_id": source_id, "kind": kind}
+        sources.append(item)
+        if source is None or kind not in SUPPORTED_APPLY_SOURCE_KINDS:
+            unsupported.append(item)
+            if any(component.source_id == source_id and component.required for component in plan.resolved_components):
+                unsupported_required.append(item)
+
+    return {
+        "valid": True,
+        "error": None,
+        "workflow": {"id": plan.workflow, "scope": plan.workflow_scope},
+        "packs": list(plan.packs),
+        "sources": sources,
+        "unsupported_source_kinds": unsupported,
+        "unsupported_required_source_kinds": unsupported_required,
+        "component_count": len(plan.resolved_components),
+        "file_operation_count": len(plan.file_operations),
+        "external_operation_count": len(plan.external_operations),
+        "config_operation_count": len(plan.config_operations),
+    }
+
+
+def _source_lock_status(paths: AppPaths, registry) -> dict[str, Any]:
+    base = {
+        "path": str(paths.source_lock),
+        "exists": paths.source_lock.exists(),
+        "valid": False,
+        "status": "missing",
+        "source_count": 0,
+        "sources": {},
+        "unknown_sources": [],
+        "unsupported_source_kinds": [],
+        "error": None,
+    }
+    if not paths.source_lock.exists():
+        return base
+    try:
+        locks = SourceLockStore(paths.source_lock).load_all()
+    except (ConfigError, KeyError, TypeError, ValueError) as exc:
+        base.update({"status": "invalid", "error": str(exc)})
+        return base
+
+    unknown_sources = sorted(source_id for source_id in locks if source_id not in registry.sources)
+    unsupported = []
+    for source_id in sorted(locks):
+        source = registry.sources.get(source_id)
+        if source is not None and source.kind not in SUPPORTED_APPLY_SOURCE_KINDS:
+            unsupported.append({"source_id": source_id, "kind": source.kind})
+    base.update(
+        {
+            "valid": True,
+            "status": "present",
+            "source_count": len(locks),
+            "sources": {source_id: lock.to_dict() for source_id, lock in sorted(locks.items())},
+            "unknown_sources": unknown_sources,
+            "unsupported_source_kinds": unsupported,
+        }
+    )
+    return base
+
+
+def _latest_receipt_status(paths: AppPaths) -> dict[str, Any]:
+    base = {
+        "path": str(paths.operations_dir),
+        "exists": False,
+        "valid": False,
+        "status": "missing",
+        "operation_id": None,
+        "created_at": None,
+        "result": None,
+        "backup_id": None,
+        "workflow": None,
+        "packs": [],
+        "sources": [],
+        "file_count": 0,
+        "config_change_count": 0,
+        "invalid_receipt_count": 0,
+        "error": None,
+    }
+    receipt_paths = sorted(paths.operations_dir.glob("*/receipt.json"), key=lambda path: path.parent.name, reverse=True)
+    if not receipt_paths:
+        return base
+
+    invalid_count = 0
+    store = ReceiptStore(paths.operations_dir)
+    for receipt_path in receipt_paths:
+        try:
+            receipt = store.load_path(receipt_path)
+        except (ConfigError, KeyError, TypeError, ValueError) as exc:
+            invalid_count += 1
+            base["error"] = str(exc)
+            continue
+        if receipt.project_root.expanduser().resolve() != paths.project_root:
+            continue
+        return {
+            "path": str(receipt_path),
+            "exists": True,
+            "valid": True,
+            "status": "present",
+            "operation_id": receipt.operation_id,
+            "created_at": receipt.created_at,
+            "result": receipt.result,
+            "backup_id": receipt.backup_id,
+            "workflow": receipt.workflow,
+            "packs": receipt.packs,
+            "sources": receipt.sources,
+            "file_count": len(receipt.files),
+            "config_change_count": len(receipt.config_changes),
+            "invalid_receipt_count": invalid_count,
+            "error": None,
+        }
+
+    base["invalid_receipt_count"] = invalid_count
+    if invalid_count:
+        base["status"] = "missing_for_project"
+    return base
+
+
+def _gsd_runtime_status(paths: AppPaths) -> dict[str, Any]:
+    try:
+        result = GsdWorkflowAdapter().status(paths, runtime="claude", scope="global")
+    except Exception as exc:
+        return {
+            "workflow_id": "gsd",
+            "status": "error",
+            "ok": False,
+            "commands": [],
+            "checks": [],
+            "logs": [],
+            "warnings": [str(exc)],
+        }
+    return _workflow_result_to_dict(result) or {
+        "workflow_id": "gsd",
+        "status": "unknown",
+        "ok": False,
+        "commands": [],
+        "checks": [],
+        "logs": [],
+        "warnings": [],
+    }
+
+
+def _pack_summary(project_state: dict[str, Any], plan_audit: dict[str, Any]) -> dict[str, Any]:
+    installed = project_state.get("packs", {})
+    if not isinstance(installed, dict):
+        installed = {}
+    return {
+        "installed": installed,
+        "planned": list(plan_audit.get("packs", [])),
+    }
+
+
+def _plan_consistency(project_state: dict[str, Any], plan_audit: dict[str, Any]) -> dict[str, Any]:
+    installed = project_state.get("packs", {})
+    if not isinstance(installed, dict):
+        installed = {}
+    installed_ids = set(installed)
+    planned_ids = set(plan_audit.get("packs", [])) if plan_audit.get("valid") else set()
+    missing = sorted(planned_ids - installed_ids)
+    extra = sorted(installed_ids - planned_ids)
+    if not installed_ids:
+        status = "not_applied"
+    elif not plan_audit.get("valid"):
+        status = "unknown"
+    elif not missing and not extra:
+        status = "matches"
+    else:
+        status = "drift"
+    return {
+        "status": status,
+        "missing_packs": missing,
+        "extra_packs": extra,
+    }
+
+
+def _receipt_consistency(project_state: dict[str, Any], receipt_status: dict[str, Any]) -> dict[str, Any]:
+    state_operation_id = project_state.get("last_operation_id")
+    receipt_operation_id = receipt_status.get("operation_id")
+    if not state_operation_id and not receipt_operation_id:
+        status = "not_applied"
+    elif state_operation_id and state_operation_id == receipt_operation_id:
+        status = "matches"
+    elif state_operation_id and not receipt_operation_id:
+        status = "missing_receipt"
+    else:
+        status = "mismatch"
+    return {
+        "status": status,
+        "state_operation_id": state_operation_id,
+        "receipt_operation_id": receipt_operation_id,
+    }
+
+
+def _apply_readiness(
+    *,
+    conflicts: list[str],
+    modified_managed_files: list[str],
+    plan_audit: dict[str, Any],
+    source_lock_status: dict[str, Any],
+    receipt_status: dict[str, Any],
+    workflow_status: dict[str, Any],
+    project_state: dict[str, Any],
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not plan_audit.get("valid"):
+        blockers.append(f"install plan could not be built: {plan_audit.get('error')}")
+    if conflicts:
+        blockers.append(f"{len(conflicts)} conflict file(s) require review")
+    if modified_managed_files:
+        blockers.append(f"{len(modified_managed_files)} managed file(s) have local modifications")
+    unsupported = plan_audit.get("unsupported_required_source_kinds", [])
+    if unsupported:
+        blockers.append(
+            "unsupported required source kind(s): "
+            + ", ".join(f"{item['source_id']} ({item['kind']})" for item in unsupported)
+        )
+
+    if workflow_status.get("status") in {"not_installed", "blocked_environment", "error"}:
+        warnings.append(f"GSD runtime status is {workflow_status.get('status')}")
+    if source_lock_status.get("status") == "missing":
+        warnings.append("source lock will be created on first successful apply")
+    elif not source_lock_status.get("valid"):
+        blockers.append(f"source lock is {source_lock_status.get('status')}")
+    if receipt_status.get("status") in {"missing", "missing_for_project"}:
+        warnings.append("no apply receipt exists for this project yet")
+    elif not receipt_status.get("valid"):
+        blockers.append(f"latest receipt is {receipt_status.get('status')}")
+
+    plan_consistency = _plan_consistency(project_state, plan_audit)
+    receipt_consistency = _receipt_consistency(project_state, receipt_status)
+    if plan_consistency["status"] == "drift":
+        warnings.append("installed packs differ from the current plan")
+    if receipt_consistency["status"] in {"missing_receipt", "mismatch"}:
+        warnings.append("project state and latest receipt do not match")
+
+    ready = not blockers
+    return {
+        "ready": ready,
+        "status": "ready" if ready else "manual_action_required",
+        "blockers": blockers,
+        "warnings": warnings,
+        "plan_consistency": plan_consistency,
+        "receipt_consistency": receipt_consistency,
+    }
 
 
 def _read_json_object_strict(path: Path) -> dict[str, Any]:
@@ -628,12 +920,32 @@ def remove_project(
 def project_status(project_root: Path | None = None) -> dict[str, Any]:
     paths = AppPaths.build(project_root)
     detection = detect_project(paths.project_root)
+    registry = load_registry()
     global_state = load_json(paths.global_state)
     project_state = load_json(paths.project_state)
     conflicts = sorted(
         str(path.relative_to(paths.project_root))
         for path in paths.project_root.rglob("*.ecc-upstream")
         if path.is_file()
+    )
+    modified_managed_files = [
+        str(status.path)
+        for status in [*managed_file_statuses(global_state), *managed_file_statuses(project_state)]
+        if status.modified
+    ]
+    plan_audit = _plan_audit(paths, registry)
+    source_lock = _source_lock_status(paths, registry)
+    receipt = _latest_receipt_status(paths)
+    runtime_status = _gsd_runtime_status(paths)
+    packs = _pack_summary(project_state, plan_audit)
+    apply_readiness = _apply_readiness(
+        conflicts=conflicts,
+        modified_managed_files=modified_managed_files,
+        plan_audit=plan_audit,
+        source_lock_status=source_lock,
+        receipt_status=receipt,
+        workflow_status=runtime_status,
+        project_state=project_state,
     )
     return {
         "project_root": str(paths.project_root),
@@ -656,11 +968,21 @@ def project_status(project_root: Path | None = None) -> dict[str, Any]:
         "last_initialized_at": project_state.get("last_initialized_at"),
         "conflicts": conflicts,
         "backup_count": len(list_backups(paths.backups_dir)),
-        "modified_managed_files": [
-            str(status.path)
-            for status in [*managed_file_statuses(global_state), *managed_file_statuses(project_state)]
-            if status.modified
-        ],
+        "modified_managed_files": modified_managed_files,
+        "workflow": {
+            "state": project_state.get("workflow") if isinstance(project_state.get("workflow"), dict) else {},
+            "planned": plan_audit.get("workflow"),
+            "runtime": runtime_status,
+        },
+        "packs": packs,
+        "sources": {
+            "locked": source_lock.get("sources", {}),
+            "planned": plan_audit.get("sources", []),
+            "unsupported_source_kinds": plan_audit.get("unsupported_source_kinds", []),
+        },
+        "source_lock": source_lock,
+        "last_receipt": receipt,
+        "apply_readiness": apply_readiness,
     }
 
 
@@ -675,12 +997,8 @@ def doctor(project_root: Path | None = None) -> list[tuple[str, bool, str]]:
         ("Claude 配置目录", paths.claude_home),
         ("当前项目目录", paths.project_root),
     ):
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-            writable = os.access(path, os.W_OK)
-        except OSError:
-            writable = False
-        checks.append((label, writable, str(path)))
+        writable, detail = _writable_path_check(path)
+        checks.append((label, writable, detail))
 
     manifest = read_manifest()
     checks.append(("内置清单", bool(manifest.get("global_skills") and manifest.get("project_skills")), "manifest.json"))
@@ -695,6 +1013,59 @@ def doctor(project_root: Path | None = None) -> list[tuple[str, bool, str]]:
         )
     )
     checks.append(("GSD advisory-only policy", True, ", ".join(sorted(default_policy.advisory))))
+    status = project_status(paths.project_root)
+    runtime = status["workflow"]["runtime"]
+    runtime_command = ""
+    if runtime.get("commands"):
+        runtime_command = " | install preview: " + " ".join(runtime["commands"][0].get("args", []))
+    checks.append(
+        (
+            "GSD runtime",
+            runtime.get("status") in {"installed_verified", "installed_unverified"},
+            f"{runtime.get('status', 'unknown')}{runtime_command}",
+        )
+    )
+    packs = status["packs"]
+    installed_packs = sorted(packs["installed"])
+    checks.append(
+        (
+            "Installed Packs",
+            bool(installed_packs),
+            ", ".join(installed_packs) or "none installed for this project",
+        )
+    )
+    source_lock = status["source_lock"]
+    checks.append(
+        (
+            "Project source lock",
+            source_lock["status"] == "present" and source_lock["valid"],
+            f"{source_lock['status']} ({source_lock['source_count']} source(s)) at {source_lock['path']}",
+        )
+    )
+    receipt = status["last_receipt"]
+    checks.append(
+        (
+            "Latest apply receipt",
+            receipt["status"] == "present" and receipt["valid"],
+            f"{receipt['status']} ({receipt.get('operation_id') or 'none'})",
+        )
+    )
+    readiness = status["apply_readiness"]
+    checks.append(
+        (
+            "Apply readiness",
+            readiness["ready"],
+            readiness["status"] if readiness["ready"] else "; ".join(readiness["blockers"]),
+        )
+    )
+    plan_consistency = readiness["plan_consistency"]
+    checks.append(
+        (
+            "Plan/apply consistency",
+            plan_consistency["status"] in {"matches", "not_applied"},
+            plan_consistency["status"],
+        )
+    )
     checks.extend(frontend_doctor_checks(paths.project_root))
     return checks
 

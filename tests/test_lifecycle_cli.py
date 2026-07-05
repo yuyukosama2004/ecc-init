@@ -6,6 +6,24 @@ from pathlib import Path
 import pytest
 
 from ecc_init.cli import main
+from ecc_init.packs import build_registry_install_plan
+
+
+class FakeGsdRuntimeAdapter:
+    def status(self, paths, *, runtime="claude", scope="global"):
+        from ecc_init.workflows.base import EnvironmentCheck, PlannedCommand, WorkflowResult
+
+        return WorkflowResult(
+            "gsd",
+            "installed_verified",
+            commands=[
+                PlannedCommand(
+                    ("npx", "-y", "@opengsd/gsd-core@1.6.1", "--claude", "--global"),
+                    "fake GSD install",
+                )
+            ],
+            checks=[EnvironmentCheck("fake-node", True, "Node.js executable", "fake")],
+        )
 
 
 @pytest.mark.parametrize(
@@ -86,6 +104,79 @@ def test_doctor_json_uses_pass_warn_fail_statuses(tmp_path: Path, monkeypatch, c
     assert result in {0, 3}
     assert payload["summary"]["PASS"] >= 1
     assert {item["status"] for item in payload["checks"]} <= {"PASS", "WARN", "FAIL"}
+
+
+def test_doctor_json_does_not_create_runtime_directories(tmp_path: Path, monkeypatch, capsys) -> None:
+    project = tmp_path / "demo"
+    project.mkdir()
+    ecc_home = tmp_path / "ecc-home"
+    claude_home = tmp_path / "claude-home"
+    monkeypatch.setenv("ECC_INIT_HOME", str(ecc_home))
+    monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
+
+    assert main(["doctor", str(project), "--json"]) in {0, 3}
+    capsys.readouterr()
+
+    assert not ecc_home.exists()
+    assert not claude_home.exists()
+
+
+def test_status_json_reports_apply_audit_after_apply(tmp_path: Path, monkeypatch, capsys) -> None:
+    project = tmp_path / "demo"
+    project.mkdir()
+    (project / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n', encoding="utf-8")
+    monkeypatch.setenv("ECC_INIT_HOME", str(tmp_path / "ecc-home"))
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
+    monkeypatch.setattr("ecc_init.app.GsdWorkflowAdapter", lambda: FakeGsdRuntimeAdapter())
+    plan = build_registry_install_plan(project)
+    plan_path = project / "plan.json"
+    plan_path.write_text(plan.to_json(), encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    assert main(["apply", str(plan_path), "--yes", "--skip-gsd-check", "--json"]) == 0
+    apply_payload = json.loads(capsys.readouterr().out)
+    assert main(["status", str(project), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["workflow"]["planned"] == {"id": "gsd", "scope": "global"}
+    assert payload["workflow"]["runtime"]["status"] == "installed_verified"
+    assert "python-fastapi" in payload["packs"]["installed"]
+    assert "python-fastapi" in payload["packs"]["planned"]
+    assert payload["source_lock"]["status"] == "present"
+    assert "bundled" in payload["sources"]["locked"]
+    assert payload["last_receipt"]["operation_id"] == apply_payload["operation_id"]
+    assert payload["apply_readiness"]["ready"] is True
+    assert payload["apply_readiness"]["plan_consistency"]["status"] == "matches"
+    assert payload["apply_readiness"]["receipt_consistency"]["status"] == "matches"
+
+
+def test_doctor_json_reports_apply_audit_checks_after_apply(tmp_path: Path, monkeypatch, capsys) -> None:
+    project = tmp_path / "demo"
+    project.mkdir()
+    (project / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n', encoding="utf-8")
+    monkeypatch.setenv("ECC_INIT_HOME", str(tmp_path / "ecc-home"))
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
+    monkeypatch.setattr("ecc_init.app.GsdWorkflowAdapter", lambda: FakeGsdRuntimeAdapter())
+    plan = build_registry_install_plan(project)
+    plan_path = project / "plan.json"
+    plan_path.write_text(plan.to_json(), encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    assert main(["apply", str(plan_path), "--yes", "--skip-gsd-check", "--json"]) == 0
+    capsys.readouterr()
+    assert main(["doctor", str(project), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    by_label = {item["label"]: item for item in payload["checks"]}
+
+    for label in (
+        "GSD runtime",
+        "Installed Packs",
+        "Project source lock",
+        "Latest apply receipt",
+        "Apply readiness",
+        "Plan/apply consistency",
+    ):
+        assert by_label[label]["status"] == "PASS"
 
 
 def test_update_check_json_is_dry_run_and_does_not_write(tmp_path: Path, monkeypatch, capsys) -> None:

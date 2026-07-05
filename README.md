@@ -187,6 +187,8 @@ ecc-init remove . --pack frontend-essential --yes --json
 
 `init . --yes` enters the project-level apply path and does not install GSD Core by default. Use `init . --yes --install-gsd` only when you intentionally want the device/runtime-level GSD install step included. `apply --yes` currently writes bundled and explicit pinned GitHub archive project-scope Pack files transactionally, and only syncs GSD config when `.planning/config.json` already exists. Missing GSD config is not created. Non-project and unsupported component installs are guarded. `remove` only edits ecc-init managed GSD config bindings in this phase. It does not delete user-modified Skill files or uninstall GSD Core.
 
+`status --json` is the read-only audit surface for the project apply loop. In addition to detection and managed-file dirty status, it reports planned workflow and Pack selection, GSD runtime status, installed and planned Packs, Source Lock status, latest project receipt, and apply readiness. `doctor --json` reuses the same audit facts and reports GSD runtime/source lock/receipt/readiness as PASS/WARN checks; it does not create runtime or project directories while checking them.
+
 ### Legacy v1 migration
 
 `ecc-init migrate --dry-run` previews removal of the legacy v1 workflow markers and deprecated global workflow skills without writing files.
