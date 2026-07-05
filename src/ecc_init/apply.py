@@ -12,7 +12,7 @@ from .core.transaction import Transaction
 from .errors import ConfigError
 from .packs import load_registry
 from .packs.gsd_bridge import ConfigSyncReport, build_gsd_config
-from .packs.installer import ComponentInstaller
+from .packs.installer import ComponentInstaller, SkippedComponent
 from .paths import AppPaths
 from .sources import BundledProvider, GitHubArchiveProvider, SourceLock, SourceLockStore
 from .util import now_iso
@@ -44,9 +44,15 @@ class ApplyReport:
     backup_id: str | None = None
     files_planned: list[dict[str, Any]] = field(default_factory=list)
     files_written: list[dict[str, Any]] = field(default_factory=list)
+    files_skipped: list[dict[str, Any]] = field(default_factory=list)
     sources_locked: list[dict[str, Any]] = field(default_factory=list)
+    sources_planned: list[dict[str, Any]] = field(default_factory=list)
+    packs_applied: list[str] = field(default_factory=list)
+    packs_partial: list[str] = field(default_factory=list)
+    packs_skipped: list[str] = field(default_factory=list)
     config_report: dict[str, Any] | None = None
     workflow_status: dict[str, Any] | None = None
+    device_side_effects: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -61,9 +67,15 @@ class ApplyReport:
             "install_plan": self.plan.to_dict(),
             "files_planned": list(self.files_planned),
             "files_written": list(self.files_written),
+            "files_skipped": list(self.files_skipped),
             "sources_locked": list(self.sources_locked),
+            "sources_planned": list(self.sources_planned),
+            "packs_applied": list(self.packs_applied),
+            "packs_partial": list(self.packs_partial),
+            "packs_skipped": list(self.packs_skipped),
             "config_report": self.config_report,
             "workflow_status": self.workflow_status,
+            "device_side_effects": list(self.device_side_effects),
             "warnings": list(self.warnings),
             "errors": list(self.errors),
         }
@@ -203,10 +215,21 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
             result = adapter.install(paths, gsd_options)
         elif options.skip_gsd_check:
             result = None
+            workflow_status = {
+                "workflow_id": "gsd",
+                "status": "skipped",
+                "ok": True,
+                "commands": [],
+                "checks": [],
+                "logs": [],
+                "warnings": ["GSD runtime check was skipped; ecc-init did not verify that GSD Core is installed."],
+            }
+            warnings.append("GSD runtime check was skipped; ecc-init did not verify that GSD Core is installed.")
         else:
             result = adapter.status(paths, runtime=options.runtime, scope=options.scope)
-        if result is not None:
+        if result is not None and workflow_status is None:
             workflow_status = _workflow_result_to_dict(result)
+        if result is not None:
             if result.status in {"not_installed", "blocked_environment"}:
                 warnings.append(f"GSD Core status is {result.status}; apply will not install GSD without --install-gsd.")
             if options.install_gsd and not options.dry_run and not result.ok:
@@ -227,10 +250,27 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
         warnings.append("GSD config is not initialized; apply will not create .planning/config.json.")
 
     files_planned = [operation.to_dict() for operation in plan.file_operations]
-    sources_locked = [
+    sources_planned: list[dict[str, Any]] = [
         {"source_id": source_id, "status": "planned"}
         for source_id in sorted({component.source_id for component in plan.resolved_components})
     ]
+    # Dry-run cannot predict exactly which sources will write files
+    # (depends on existing-file state, user modifications, optional skips, etc.)
+    sources_would_lock: list[dict[str, Any]] = []
+
+    device_side_effects: list[dict[str, Any]] = []
+    if options.install_gsd and not options.dry_run:
+        device_side_effects.append(
+            {
+                "type": "gsd-install",
+                "rollback_supported": False,
+                "message": (
+                    "GSD Core install is device/runtime-level and is not covered by project rollback."
+                    " Use the GSD installer directly to manage this installation."
+                ),
+            }
+        )
+        warnings.append("GSD Core install is device/runtime-level and is not covered by project rollback.")
 
     status = "dry_run" if options.dry_run else "blocked"
     if errors:
@@ -253,6 +293,13 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
             )
             warnings.extend(install_report.warnings)
             errors.extend(install_report.errors)
+            files_skipped = [item.to_dict() for item in install_report.files_skipped]
+
+            # Compute pack-level status from component results
+            packs_applied, packs_partial, packs_skipped = _compute_pack_statuses(
+                plan, registry, install_report
+            )
+
             if errors:
                 rollback = transaction.rollback()
                 return ApplyReport(
@@ -265,9 +312,15 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
                     backup_id=rollback.backup_id,
                     files_planned=files_planned,
                     files_written=[item.to_dict() for item in install_report.files_written],
-                    sources_locked=sources_locked,
+                    files_skipped=files_skipped,
+                    sources_locked=[],
+                    sources_planned=sources_planned,
+                    packs_applied=packs_applied,
+                    packs_partial=packs_partial,
+                    packs_skipped=packs_skipped,
                     config_report=config_report,
                     workflow_status=workflow_status,
+                    device_side_effects=device_side_effects,
                     warnings=warnings,
                     errors=errors,
                 )
@@ -287,8 +340,20 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
             if locks:
                 _write_source_lock(paths, transaction, locks)
             _write_project_state(paths, transaction, plan, install_report.files_written, locks, workflow_status)
+
+            # Determine receipt result and apply status
+            if install_report.has_required_skipped:
+                receipt_result = "partial_success"
+                apply_status = "partial"
+            elif install_report.has_any_skipped:
+                receipt_result = "success"
+                apply_status = "applied"
+            else:
+                receipt_result = "success"
+                apply_status = "applied"
+
             receipt = transaction.finish(
-                result="success",
+                result=receipt_result,
                 packs=[{"pack_id": pack_id, "version": registry.packs[pack_id].version} for pack_id in plan.packs],
                 sources=[lock.to_dict() for lock in locks.values()],
             )
@@ -296,15 +361,21 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
                 project_root=paths.project_root,
                 dry_run=False,
                 applied=True,
-                status="applied",
+                status=apply_status,
                 plan=plan,
                 operation_id=receipt.operation_id,
                 backup_id=receipt.backup_id,
                 files_planned=files_planned,
                 files_written=[item.to_dict() for item in install_report.files_written],
+                files_skipped=files_skipped,
                 sources_locked=[lock.to_dict() for lock in locks.values()],
+                sources_planned=sources_planned,
+                packs_applied=packs_applied,
+                packs_partial=packs_partial,
+                packs_skipped=packs_skipped,
                 config_report=config_report,
                 workflow_status=workflow_status,
+                device_side_effects=device_side_effects,
                 warnings=warnings,
                 errors=[],
             )
@@ -321,9 +392,12 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
                 backup_id=rollback.backup_id,
                 files_planned=files_planned,
                 files_written=[],
-                sources_locked=sources_locked,
+                files_skipped=[],
+                sources_locked=[],
+                sources_planned=sources_planned,
                 config_report=config_report,
                 workflow_status=workflow_status,
+                device_side_effects=device_side_effects,
                 warnings=warnings,
                 errors=errors,
             )
@@ -336,9 +410,12 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
         plan=plan,
         files_planned=files_planned,
         files_written=[],
-        sources_locked=sources_locked,
+        files_skipped=[],
+        sources_locked=sources_would_lock,
+        sources_planned=sources_planned,
         config_report=config_report,
         workflow_status=workflow_status,
+        device_side_effects=device_side_effects,
         warnings=warnings,
         errors=errors,
     )
@@ -418,6 +495,53 @@ def _write_gsd_config_sync(transaction: Transaction, report: ConfigSyncReport) -
         owner="gsd-config",
     )
     transaction.record_config(report.config_path, "sync-gsd", report.before, report.after)
+
+
+def _compute_pack_statuses(
+    plan: InstallPlan,
+    registry,
+    install_report,
+) -> tuple[list[str], list[str], list[str]]:
+    """Determine which Packs are fully applied, partial, or skipped."""
+    written_components: dict[str, set[str]] = {}
+    skipped_components: dict[str, set[str]] = {}
+
+    for item in install_report.files_written:
+        pack_id = item.owner.replace("pack:", "", 1) if item.owner.startswith("pack:") else None
+        if pack_id and pack_id in plan.packs:
+            written_components.setdefault(pack_id, set()).add(item.component_id)
+
+    for item in install_report.files_skipped:
+        pack_ids = [
+            pack_id
+            for pack_id in plan.packs
+            if pack_id in registry.packs and item.component_id in registry.packs[pack_id].components
+        ]
+        for pack_id in pack_ids:
+            skipped_components.setdefault(pack_id, set()).add(item.component_id)
+
+    packs_applied: list[str] = []
+    packs_partial: list[str] = []
+    packs_skipped: list[str] = []
+
+    for pack_id in plan.packs:
+        pack = registry.packs.get(pack_id)
+        if pack is None:
+            continue
+        pack_components = set(pack.components)
+        written = written_components.get(pack_id, set())
+        skipped = skipped_components.get(pack_id, set())
+        if not written and not skipped:
+            # No components for this pack were processed at all
+            packs_skipped.append(pack_id)
+        elif skipped and not written:
+            packs_skipped.append(pack_id)
+        elif skipped:
+            packs_partial.append(pack_id)
+        else:
+            packs_applied.append(pack_id)
+
+    return packs_applied, packs_partial, packs_skipped
 
 
 def _write_project_state(

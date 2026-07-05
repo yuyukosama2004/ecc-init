@@ -1,8 +1,8 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 8, 0.2.0a1 完成确认与审计
-- Batch: 2026-07-05 CODEX_NEXT_PLAN_GSD_APPLY.md 全量闭环验证
+- Phase: Post-alpha batch 9, 0.2.0a1 P0 fix & hardening
+- Batch: 2026-07-05 CLAUDE_CODE_FIXLIST_0.2.0A1.md P0 + 关键 P1
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
 - Verified: 2026-07-05 Asia/Shanghai
@@ -163,6 +163,20 @@
 - [x] Bumped package, runtime, bundled registry, release script, release tests, README, and E2E evidence docs to `0.2.0a1`.
 - [x] Extended release wheel CLI smoke so it clears inherited `PYTHONPATH`, applies bundled project files with `--yes --skip-gsd-check`, verifies Source Lock/status/doctor output, and rolls back by operation id.
 - [x] Kept the release-gate smoke within bundled project writes only; no real external CLI, Anthropic, Vercel, or GSD Core install is performed.
+- [x] P0-04: Added `pythonpath = ["src"]` to `[tool.pytest.ini_options]` in pyproject.toml; plain `python -m pytest` now succeeds without `PYTHONPATH=src`.
+- [x] P0-01: Changed GSD Node requirement from 18+ to 22+, added npm 10+ version check, added npm/npx missing blocking, updated dry-run messages and install-gsd how-to prerequisites.
+- [x] P0-02: Added `SkippedComponent` tracking to `ComponentInstallReport`; introduced `applied`/`partial`/`failed` status and `partial_success` receipt result; non-project scope skips no longer count as `required_skipped`; dry-run reports distinguish `packs_applied`/`packs_partial`/`packs_skipped`; updated 10 apply tests.
+- [x] P0-03: Added `--mode preflight|audit` to `doctor` CLI; `preflight` (default) treats missing Packs/Source Lock/Receipt as WARN not FAIL on clean projects; `audit` keeps strict behavior.
+- [x] P1-01: Human `apply` output now shows `Operation`, `Backup`, `Source lock`, `GSD config`, and explicit `Rollback: ecc-init rollback . --operation-id <id>`.
+- [x] P1-07: Updated `--skip-gsd-check` help text to mark it as a CI/test option; apply JSON now returns `workflow_status.status = "skipped"` with a clear warning.
+- [x] P1-03: Removed unverified `codex`/`cursor` from stable GSD runtime CLI choices; kept only `claude`/`auto` with experimental flag mapping preserved in code.
+- [x] P1-02: Added `device_side_effects` to ApplyReport JSON; human `apply` output shows a NOTE block for device/runtime-level side effects; `--install-gsd` warnings detail that GSD install is not covered by project rollback.
+- [x] P1-04: Improved `_has_verified_markers` to check `.planning` directory existence and use file/dir-aware glob patterns; added 4 marker detection tests covering .planning, command files, unrelated files, and project-scope root.
+- [x] P1-05: Enhanced `_pack_summary` to compute per-pack `applied`/`partial`/`skipped` status from state v2 managed_files; `status --json` installed packs now include `components_applied` and `components_skipped`; human status shows per-pack status labels.
+- [x] P1-06: Split dry-run `sources_locked` from `sources_planned`; ApplyReport JSON now distinguishes empty `sources_locked` (not yet applied) from populated `sources_planned` (declared in plan); dry-run test updated.
+- [x] P2-01: Added "0.2.0a1 Scope & Limitations" table to `docs/how-to/apply-packs.md` documenting GitHub archive single-file only, no real third-party installs, remove config-only, and missing .planning/config.json behavior.
+- [x] P2-02: Added "Future: File-Level Remove" section to `docs/how-to/audit-and-rollback.md` documenting the four preconditions for safe file deletion.
+- [x] P2-03: Created `docs/e2e/manual-alpha-smoke.md` with 5 scenarios: empty, FastAPI+LangGraph, React+Vite, existing GSD config, and dry-run previews.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -552,7 +566,14 @@
 - [x] `init --yes` 不再调用 workflow update 伪装 install
 - [x] `apply plan.json --dry-run --json` 输出稳定结构且不写文件
 
+## Batch 9-10 verification (2026-07-05 P0-P2 complete)
+| Command | Result | Evidence |
+|---|---|---|
+| `python -m pytest` (bare) | 147 passed, 4 skipped | Full P0+P1+P2 suite |
+| `python -m compileall -q src scripts` | Passed | No compilation errors |
+| `git diff --check` | Passed | CRLF normalization warnings only (Windows) |
+
 ## Next permitted batch
-- 标记 `v0.2.0-alpha.1` release tag（需维护者批准）
-- 或进入新的明确范围 source 生命周期批次（archive directory projection、source update 远程拉取、remove files）
-- 继续保持 external_cli/Anthropic/Vercel 真实安装和 .planning/config.json 自动创建为 out-of-scope
+- Tag `v0.2.0-alpha.1` release after maintainer approval.
+- All P0, P1, and P2 items from CLAUDE_CODE_FIXLIST_0.2.0A1.md are complete.
+- Keep external_cli/Anthropic/Vercel real installs, new Packs, and .planning/config.json auto-creation out of scope until a new plan authorizes them.

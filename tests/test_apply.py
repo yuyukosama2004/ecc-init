@@ -65,7 +65,8 @@ def test_apply_dry_run_report_is_stable_and_does_not_write(tmp_path: Path, monke
     assert payload["applied"] is False
     assert payload["files_planned"]
     assert payload["files_written"] == []
-    assert payload["sources_locked"]
+    assert payload["sources_locked"] == []
+    assert payload["sources_planned"]
     assert not (project / ".claude").exists()
     assert not (project / "docs").exists()
 
@@ -248,12 +249,18 @@ def test_apply_preserves_existing_unowned_files(tmp_path: Path, monkeypatch, cap
     plan_path.write_text(plan.to_json(), encoding="utf-8")
     monkeypatch.chdir(project)
 
-    assert main(["apply", str(plan_path), "--yes", "--skip-gsd-check", "--json"]) == 0
+    assert main(["apply", str(plan_path), "--yes", "--skip-gsd-check", "--json"]) == 4
     payload = json.loads(capsys.readouterr().out)
 
     assert target.read_text(encoding="utf-8") == "user skill\n"
+    assert payload["status"] == "partial"
+    assert any(item["component_id"] == "skill-python-patterns" for item in payload["files_skipped"])
     assert any("preserved existing unowned file" in warning for warning in payload["warnings"])
     assert (project / ".claude" / "skills" / "fastapi-patterns" / "SKILL.md").exists()
+    receipts = list((tmp_path / "ecc-home" / "operations").glob("*/receipt.json"))
+    assert len(receipts) == 1
+    receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
+    assert receipt["result"] == "partial_success"
 
 
 def test_apply_yes_installs_fixed_github_archive_component_from_offline_cache(

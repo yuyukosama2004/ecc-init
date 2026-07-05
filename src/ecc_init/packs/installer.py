@@ -35,12 +35,47 @@ class InstalledFile:
         }
 
 
+@dataclass(frozen=True)
+class SkippedComponent:
+    component_id: str
+    source_id: str
+    target_path: Path
+    reason: str
+    required: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "component_id": self.component_id,
+            "source_id": self.source_id,
+            "target_path": str(self.target_path),
+            "reason": self.reason,
+            "required": self.required,
+        }
+
+
 @dataclass
 class ComponentInstallReport:
     files_planned: list[dict[str, Any]] = field(default_factory=list)
     files_written: list[InstalledFile] = field(default_factory=list)
+    files_skipped: list[SkippedComponent] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+
+    @property
+    def has_required_skipped(self) -> bool:
+        """Required components that were skipped for reasons other than non-project scope."""
+        return any(
+            item.required and "non-project scope" not in item.reason
+            for item in self.files_skipped
+        )
+
+    @property
+    def has_non_project_skipped(self) -> bool:
+        return any("non-project scope" in item.reason for item in self.files_skipped)
+
+    @property
+    def has_any_skipped(self) -> bool:
+        return bool(self.files_skipped)
 
 
 def _managed_entry(state: dict[str, Any], path: Path) -> dict[str, Any] | None:
@@ -130,9 +165,27 @@ class ComponentInstaller:
                     report.errors.append(f"unsupported required source kind for component: {component.component_id} ({source.kind})")
                 else:
                     report.warnings.append(f"skipped unsupported optional component: {component.component_id}")
+                    report.files_skipped.append(
+                        SkippedComponent(
+                            component_id=component.component_id,
+                            source_id=component.source_id,
+                            target_path=resolved.target_path,
+                            reason=f"unsupported source kind: {source.kind}",
+                            required=False,
+                        )
+                    )
                 continue
             if component.target_scope != "project":
                 report.warnings.append(f"skipped non-project component in apply batch: {component.component_id}")
+                report.files_skipped.append(
+                    SkippedComponent(
+                        component_id=component.component_id,
+                        source_id=component.source_id,
+                        target_path=resolved.target_path,
+                        reason=f"non-project scope ({component.target_scope}) not supported in current apply batch",
+                        required=component.required,
+                    )
+                )
                 continue
 
             target = resolved.target_path
@@ -149,6 +202,15 @@ class ComponentInstaller:
                     report.errors.append(str(exc))
                 else:
                     report.warnings.append(f"skipped optional component {component.component_id}: {exc}")
+                    report.files_skipped.append(
+                        SkippedComponent(
+                            component_id=component.component_id,
+                            source_id=component.source_id,
+                            target_path=resolved.target_path,
+                            reason=str(exc),
+                            required=False,
+                        )
+                    )
                 continue
             incoming_hash = sha256_text(incoming)
             existing_content = read_text(target)
@@ -157,11 +219,29 @@ class ComponentInstaller:
 
             if target.exists() and managed_entry is None:
                 report.warnings.append(f"preserved existing unowned file: {target}")
+                report.files_skipped.append(
+                    SkippedComponent(
+                        component_id=component.component_id,
+                        source_id=component.source_id,
+                        target_path=target,
+                        reason="existing unowned file preserved",
+                        required=component.required,
+                    )
+                )
                 continue
             if target.exists() and managed_entry is not None:
                 recorded_hash = managed_entry.get("sha256")
                 if recorded_hash and previous_hash != recorded_hash:
                     report.warnings.append(f"preserved user-modified managed file: {target}")
+                    report.files_skipped.append(
+                        SkippedComponent(
+                            component_id=component.component_id,
+                            source_id=component.source_id,
+                            target_path=target,
+                            reason="user-modified managed file preserved",
+                            required=component.required,
+                        )
+                    )
                     continue
                 status = "updated"
             else:

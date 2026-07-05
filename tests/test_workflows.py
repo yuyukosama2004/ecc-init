@@ -6,15 +6,19 @@ from ecc_init.workflows.base import CommandResult
 
 
 class FakeRunner:
-    def __init__(self, version: str = "v18.19.0", install_returncode: int = 0):
-        self.version = version
+    def __init__(self, node_version: str = "v22.0.0", npm_version: str = "10.0.0", install_returncode: int = 0):
+        self.node_version = node_version
+        self.npm_version = npm_version
         self.install_returncode = install_returncode
         self.calls: list[tuple[str, ...]] = []
 
     def run(self, args: list[str], *, cwd: Path | None = None) -> CommandResult:
         self.calls.append(tuple(args))
         if args[-1] == "--version":
-            return CommandResult(tuple(args), 0, self.version + "\n", "")
+            tool = Path(args[0]).name.replace(".cmd", "") if args else ""
+            if tool == "node":
+                return CommandResult(tuple(args), 0, self.node_version + "\n", "")
+            return CommandResult(tuple(args), 0, self.npm_version + "\n", "")
         return CommandResult(tuple(args), self.install_returncode, "installed\n", "")
 
 
@@ -39,6 +43,7 @@ def test_gsd_install_dry_run_plans_pinned_command(monkeypatch, tmp_path: Path) -
     assert result.logs == []
     assert runner.calls == []
     assert any(check.check_id == "node-version" and check.detail == "not checked during dry-run" for check in result.checks)
+    assert any(check.check_id == "npm-version" and check.detail == "not checked during dry-run" for check in result.checks)
     assert any("install affects runtime configuration" in warning for warning in result.warnings)
 
 
@@ -67,12 +72,67 @@ def test_gsd_install_blocks_when_node_missing(monkeypatch, tmp_path: Path) -> No
 
 def test_gsd_install_blocks_when_node_too_old(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
-    adapter = GsdWorkflowAdapter(FakeRunner(version="v16.20.0"))
+    adapter = GsdWorkflowAdapter(FakeRunner(node_version="v20.0.0"))
 
     result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
 
     assert result.status == "blocked_environment"
     assert any(check.check_id == "node-version" and not check.ok for check in result.checks)
+
+
+def test_gsd_install_blocks_when_npm_too_old(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    adapter = GsdWorkflowAdapter(FakeRunner(npm_version="8.0.0"))
+
+    result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
+
+    assert result.status == "blocked_environment"
+    assert any(check.check_id == "npm-version" and not check.ok for check in result.checks)
+
+
+def test_gsd_install_blocks_when_npm_missing(monkeypatch, tmp_path: Path) -> None:
+    def _which_no_npm(name: str) -> str | None:
+        normalized = name.removesuffix(".cmd")
+        if normalized in {"node", "npx"}:
+            return f"C:/tools/{name}"
+        return None
+
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which_no_npm)
+    adapter = GsdWorkflowAdapter(FakeRunner())
+
+    result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
+
+    assert result.status == "blocked_environment"
+    assert any(check.check_id == "npm-present" and not check.ok for check in result.checks)
+
+
+def test_gsd_install_blocks_when_npx_missing(monkeypatch, tmp_path: Path) -> None:
+    def _which_no_npx(name: str) -> str | None:
+        normalized = name.removesuffix(".cmd")
+        if normalized in {"node", "npm"}:
+            return f"C:/tools/{name}"
+        return None
+
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which_no_npx)
+    adapter = GsdWorkflowAdapter(FakeRunner())
+
+    result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
+
+    assert result.status == "blocked_environment"
+    assert any(check.check_id == "npx-present" and not check.ok for check in result.checks)
+
+
+def test_gsd_install_dry_run_does_not_execute_versions(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    runner = FakeRunner()
+    adapter = GsdWorkflowAdapter(runner)
+
+    result = adapter.install(AppPaths.build(tmp_path), dry_run=True)
+
+    assert result.status == "planned"
+    assert runner.calls == []
+    assert any(check.check_id == "node-version" and check.detail == "not checked during dry-run" for check in result.checks)
+    assert any(check.check_id == "npm-version" and check.detail == "not checked during dry-run" for check in result.checks)
 
 
 def test_gsd_local_project_command_uses_local_scope(monkeypatch, tmp_path: Path) -> None:
@@ -117,3 +177,70 @@ def test_gsd_inspect_and_remove_are_safe_strategy_only(tmp_path: Path) -> None:
     assert remove.status == "planned"
     assert remove.logs == []
     assert any("strategy-only" in warning for warning in remove.warnings)
+
+
+def test_gsd_status_verified_when_planning_dir_exists(tmp_path: Path, monkeypatch) -> None:
+    """Global Claude GSD is verified when .planning directory exists under Claude home."""
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    claude_home = tmp_path / "claude"
+    claude_home.mkdir()
+    (claude_home / ".planning").mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
+    paths = AppPaths.build(tmp_path / "project")
+    (tmp_path / "project").mkdir()
+
+    adapter = GsdWorkflowAdapter(FakeRunner())
+    result = adapter.status(paths, runtime="claude", scope="global")
+
+    assert result.status == "installed_verified"
+
+
+def test_gsd_status_verified_when_command_marker_exists(tmp_path: Path, monkeypatch) -> None:
+    """Global Claude GSD is verified when commands/gsd-new-project.md exists."""
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    claude_home = tmp_path / "claude"
+    claude_home.mkdir()
+    (claude_home / "commands").mkdir(parents=True)
+    (claude_home / "commands" / "gsd-new-project.md").write_text("")
+    monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
+    (tmp_path / "project").mkdir()
+    paths = AppPaths.build(tmp_path / "project")
+
+    adapter = GsdWorkflowAdapter(FakeRunner())
+    result = adapter.status(paths, runtime="claude", scope="global")
+
+    assert result.status == "installed_verified"
+
+
+def test_gsd_status_not_verified_for_unrelated_files(tmp_path: Path, monkeypatch) -> None:
+    """Random files in Claude home do not trigger verified status."""
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    claude_home = tmp_path / "claude"
+    claude_home.mkdir()
+    (claude_home / "unrelated").mkdir(parents=True)
+    (claude_home / "unrelated" / "notes.md").write_text("not gsd")
+    monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
+    (tmp_path / "project").mkdir()
+    paths = AppPaths.build(tmp_path / "project")
+
+    adapter = GsdWorkflowAdapter(FakeRunner())
+    result = adapter.status(paths, runtime="claude", scope="global")
+
+    assert result.status == "not_installed"
+
+
+def test_gsd_status_project_scope_uses_project_claude_root(tmp_path: Path, monkeypatch) -> None:
+    """Project-scope GSD verification checks project/.claude, not global home."""
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".claude" / ".planning").mkdir(parents=True)
+    global_home = tmp_path / "global-claude"
+    global_home.mkdir()
+    monkeypatch.setenv("CLAUDE_HOME", str(global_home))
+    paths = AppPaths.build(project)
+
+    adapter = GsdWorkflowAdapter(FakeRunner())
+    result = adapter.status(paths, runtime="claude", scope="project")
+
+    assert result.status == "installed_verified"

@@ -4,6 +4,16 @@ GSD Core is a device/runtime-level workflow kernel. Install it once for the runt
 
 `ecc-init` does not copy, vendor, or modify GSD Core files. It plans and runs the pinned official installer command for the selected runtime and scope.
 
+## Prerequisites
+
+GSD Core `@opengsd/gsd-core@1.6.1` requires:
+
+- **Node.js** >= 22.0.0
+- **npm** >= 10.0.0
+- **npx** present (bundled with npm)
+
+`ecc-init gsd status` checks these before install or update. If any check fails, the status is `blocked_environment` and the installer will not execute. Dry-run previews do not run version checks against the actual toolchain.
+
 ## Check Status
 
 ```powershell

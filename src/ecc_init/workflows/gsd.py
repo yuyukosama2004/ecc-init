@@ -12,10 +12,13 @@ from .base import CommandResult, CommandRunner, EnvironmentCheck, PlannedCommand
 
 GSD_PACKAGE = "@opengsd/gsd-core"
 GSD_PINNED_VERSION = "1.6.1"
-MIN_NODE_VERSION = (18, 0, 0)
+MIN_NODE_VERSION = (22, 0, 0)
+MIN_NPM_VERSION = (10, 0, 0)
 RUNTIME_FLAGS = {
     "auto": "--claude",
     "claude": "--claude",
+}
+_EXPERIMENTAL_RUNTIME_FLAGS = {
     "codex": "--codex",
     "cursor": "--cursor",
 }
@@ -96,6 +99,8 @@ class GsdWorkflowAdapter:
         checks.append(EnvironmentCheck("node-present", node_path is not None, "Node.js executable", node_path or "not found"))
         checks.append(EnvironmentCheck("npx-present", npx_path is not None, "npx executable", npx_path or "not found"))
         checks.append(EnvironmentCheck("npm-present", npm_path is not None, "npm executable", npm_path or "not found"))
+        node_version_msg = f"Node.js {MIN_NODE_VERSION[0]}+ required"
+        npm_version_msg = f"npm {MIN_NPM_VERSION[0]}+ required"
         if node_path and run_version:
             result = self.runner.run([node_path, "--version"])
             version = _parse_version(result.stdout or result.stderr)
@@ -104,7 +109,7 @@ class GsdWorkflowAdapter:
                 EnvironmentCheck(
                     "node-version",
                     ok,
-                    "Node.js 18+ required",
+                    node_version_msg,
                     (result.stdout or result.stderr).strip() or f"exit {result.returncode}",
                 )
             )
@@ -113,8 +118,47 @@ class GsdWorkflowAdapter:
                 EnvironmentCheck(
                     "node-version",
                     True,
-                    "Node.js 18+ required",
+                    node_version_msg,
                     "not checked during dry-run",
+                )
+            )
+        else:
+            checks.append(
+                EnvironmentCheck(
+                    "node-version",
+                    False,
+                    node_version_msg,
+                    "Node.js not found",
+                )
+            )
+        if npm_path and run_version:
+            result = self.runner.run([npm_path, "--version"])
+            version = _parse_version(result.stdout or result.stderr)
+            ok = result.ok and version is not None and version >= MIN_NPM_VERSION
+            checks.append(
+                EnvironmentCheck(
+                    "npm-version",
+                    ok,
+                    npm_version_msg,
+                    (result.stdout or result.stderr).strip() or f"exit {result.returncode}",
+                )
+            )
+        elif npm_path:
+            checks.append(
+                EnvironmentCheck(
+                    "npm-version",
+                    True,
+                    npm_version_msg,
+                    "not checked during dry-run",
+                )
+            )
+        else:
+            checks.append(
+                EnvironmentCheck(
+                    "npm-version",
+                    False,
+                    npm_version_msg,
+                    "npm not found",
                 )
             )
         return checks
@@ -144,14 +188,26 @@ class GsdWorkflowAdapter:
         root = self._target_root(paths, options)
         if not root.exists():
             return False
-        marker_patterns = (
-            "commands/gsd*",
-            "commands/gsd/*",
-            "agents/gsd*",
-            "skills/gsd-*",
-            "hooks/gsd*",
+        planning_dir = root / ".planning" if options.runtime == "claude" and options.scope == "project" else None
+        if planning_dir and planning_dir.exists():
+            return True
+        # Check for GSD-installed artifacts under the install root.
+        # Patterns cover both direct files (e.g. commands/gsd-new-project.md)
+        # and the planning directory which GSD always creates during init.
+        marker_patterns: tuple[tuple[str, bool], ...] = (
+            (".planning", True),          # directory created by GSD init
+            ("commands/gsd*", False),
+            ("agents/gsd*", False),
+            ("skills/gsd-*", False),
+            ("hooks/gsd*", False),
         )
-        return any(any(root.glob(pattern)) for pattern in marker_patterns)
+        for pattern, is_dir in marker_patterns:
+            for candidate in root.glob(pattern):
+                if is_dir and candidate.is_dir():
+                    return True
+                if not is_dir and candidate.is_file():
+                    return True
+        return False
 
     def status(self, paths: AppPaths, *, runtime: str = "claude", scope: str = "global") -> WorkflowResult:
         options = GsdInstallOptions(runtime=runtime, scope=scope)

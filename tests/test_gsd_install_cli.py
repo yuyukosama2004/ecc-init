@@ -15,7 +15,13 @@ class FakeGsdAdapter:
             "gsd",
             status,
             commands=[command],
-            checks=[EnvironmentCheck("node-present", True, "Node.js executable", "fake-node")],
+            checks=[
+                EnvironmentCheck("node-present", True, "Node.js executable", "fake-node"),
+                EnvironmentCheck("npx-present", True, "npx executable", "fake-npx"),
+                EnvironmentCheck("npm-present", True, "npm executable", "fake-npm"),
+                EnvironmentCheck("node-version", True, "Node.js 22+ required", "v22.0.0"),
+                EnvironmentCheck("npm-version", True, "npm 10+ required", "10.0.0"),
+            ],
         )
 
     def status(self, paths, *, runtime="claude", scope="global"):

@@ -308,10 +308,55 @@ def _gsd_runtime_status(paths: AppPaths) -> dict[str, Any]:
     }
 
 
-def _pack_summary(project_state: dict[str, Any], plan_audit: dict[str, Any]) -> dict[str, Any]:
-    installed = project_state.get("packs", {})
-    if not isinstance(installed, dict):
-        installed = {}
+def _pack_summary(project_state: dict[str, Any], plan_audit: dict[str, Any], registry) -> dict[str, Any]:
+    raw_installed = project_state.get("packs", {})
+    if not isinstance(raw_installed, dict):
+        raw_installed = {}
+    managed_files = project_state.get("managed_files", {})
+    if not isinstance(managed_files, dict):
+        managed_files = {}
+
+    # Build component→pack mapping from registry
+    component_pack: dict[str, str] = {}
+    for pack_id, pack in registry.packs.items():
+        for component_id in pack.components:
+            component_pack[component_id] = pack_id
+
+    # Collect installed components per pack from managed_files
+    pack_components: dict[str, set[str]] = {}
+    for path_str, entry in managed_files.items():
+        if not isinstance(entry, dict):
+            continue
+        component_id = entry.get("component_id")
+        if not component_id:
+            continue
+        pack_id = component_pack.get(component_id)
+        if pack_id is None:
+            continue
+        pack_components.setdefault(pack_id, set()).add(component_id)
+
+    installed: dict[str, dict[str, Any]] = {}
+    for pack_id in sorted(raw_installed):
+        pack = registry.packs.get(pack_id)
+        expected = set(pack.components) if pack else set()
+        written = pack_components.get(pack_id, set())
+        missing = expected - written
+        version = raw_installed[pack_id].get("version", 1) if isinstance(raw_installed[pack_id], dict) else 1
+        if not expected:
+            status = "declaration_only"
+        elif not written:
+            status = "skipped"
+        elif missing:
+            status = "partial"
+        else:
+            status = "applied"
+        installed[pack_id] = {
+            "version": version,
+            "status": status,
+            "components_applied": sorted(written),
+            "components_skipped": sorted(missing),
+        }
+
     return {
         "installed": installed,
         "planned": list(plan_audit.get("packs", [])),
@@ -937,7 +982,7 @@ def project_status(project_root: Path | None = None) -> dict[str, Any]:
     source_lock = _source_lock_status(paths, registry)
     receipt = _latest_receipt_status(paths)
     runtime_status = _gsd_runtime_status(paths)
-    packs = _pack_summary(project_state, plan_audit)
+    packs = _pack_summary(project_state, plan_audit, registry)
     apply_readiness = _apply_readiness(
         conflicts=conflicts,
         modified_managed_files=modified_managed_files,
@@ -986,8 +1031,14 @@ def project_status(project_root: Path | None = None) -> dict[str, Any]:
     }
 
 
-def doctor(project_root: Path | None = None) -> list[tuple[str, bool, str]]:
+def doctor(project_root: Path | None = None, *, mode: str = "preflight") -> list[tuple[str, bool, str]]:
+    """Run environment and project health checks.
+
+    mode='preflight': suitable before first apply — missing Packs/Source Lock/Receipt are WARN not FAIL.
+    mode='audit': suitable after apply — missing audit artifacts are FAIL.
+    """
     paths = AppPaths.build(project_root)
+    strict = mode == "audit"
     checks: list[tuple[str, bool, str]] = []
     checks.append(("Python 版本", sys.version_info >= (3, 10), sys.version.split()[0]))
     checks.append(("Git 三方合并", shutil.which("git") is not None, shutil.which("git") or "未找到；冲突时将保留本地版本"))
@@ -1018,35 +1069,39 @@ def doctor(project_root: Path | None = None) -> list[tuple[str, bool, str]]:
     runtime_command = ""
     if runtime.get("commands"):
         runtime_command = " | install preview: " + " ".join(runtime["commands"][0].get("args", []))
+    gsd_runtime_ok = runtime.get("status") in {"installed_verified", "installed_unverified"}
     checks.append(
         (
             "GSD runtime",
-            runtime.get("status") in {"installed_verified", "installed_unverified"},
+            gsd_runtime_ok if strict else True,
             f"{runtime.get('status', 'unknown')}{runtime_command}",
         )
     )
     packs = status["packs"]
     installed_packs = sorted(packs["installed"])
+    has_packs = bool(installed_packs)
     checks.append(
         (
             "Installed Packs",
-            bool(installed_packs),
+            has_packs if strict else True,
             ", ".join(installed_packs) or "none installed for this project",
         )
     )
     source_lock = status["source_lock"]
+    source_lock_ok = source_lock["status"] == "present" and source_lock["valid"]
     checks.append(
         (
             "Project source lock",
-            source_lock["status"] == "present" and source_lock["valid"],
+            source_lock_ok if strict else True,
             f"{source_lock['status']} ({source_lock['source_count']} source(s)) at {source_lock['path']}",
         )
     )
     receipt = status["last_receipt"]
+    receipt_ok = receipt["status"] == "present" and receipt["valid"]
     checks.append(
         (
             "Latest apply receipt",
-            receipt["status"] == "present" and receipt["valid"],
+            receipt_ok if strict else True,
             f"{receipt['status']} ({receipt.get('operation_id') or 'none'})",
         )
     )

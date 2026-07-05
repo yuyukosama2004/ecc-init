@@ -57,3 +57,17 @@ Use `--no-sync-gsd` when you want Pack files written but GSD config left untouch
 ## Offline Source Behavior
 
 Bundled sources work offline. Optional unsupported sources are skipped with warnings when they are not required. Required unsupported sources fail closed. Fixed GitHub archive components require a pinned archive, an offline cache entry, or network access when allowed.
+
+## 0.2.0a1 Scope & Limitations
+
+This alpha supports a specific, bounded apply surface. The following capabilities are **not yet supported** and remain future work:
+
+| Capability | Status |
+|---|---|
+| GitHub archive directory projection (multi-file) | Not yet — only single-file projection |
+| Real ECC/Vercel/Anthropic/UI UX Pro Max source install | Not yet — registry entries are declaration-only |
+| `update --sources --yes` remote fetch | Not yet — source update is preview-only |
+| `remove --pack X --files --yes` | Not yet — remove edits only GSD config bindings |
+| Global-scope component writes during apply | Intentionally skipped — apply targets project scope |
+| `.planning/config.json` creation | Intentionally not created — GSD owns project init |
+| `codex`/`cursor` GSD runtime flags | Experimental — `claude`/`auto` are the stable choices |

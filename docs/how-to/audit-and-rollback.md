@@ -49,3 +49,14 @@ Rollback restores project files and Source Lock state recorded by the transactio
 Project rollback does not uninstall GSD Core. GSD Core is a device/runtime-level workflow dependency installed separately through `ecc-init gsd install --yes`.
 
 Rollback also does not delete user-authored files that were preserved during apply, and `remove` currently edits only managed GSD config bindings rather than deleting Pack files.
+
+## Future: File-Level Remove
+
+`remove` currently only cleans managed GSD config bindings. File-level removal is planned for a future release. It will require four preconditions before deleting any managed file:
+
+1. The file was installed by `ecc-init` and is recorded in managed state;
+2. The file hash has not been changed by the user;
+3. No other installed Pack shares ownership of the file;
+4. A backup and receipt exist so the removal can be rolled back.
+
+Until file-level remove is available, user-modified Skill files are preserved, and GSD config bindings are the only safe removal target.

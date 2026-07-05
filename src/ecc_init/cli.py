@@ -84,7 +84,7 @@ def _parser() -> argparse.ArgumentParser:
     apply.add_argument("--dry-run", action="store_true", help="validate only; never writes")
     apply.add_argument("--yes", action="store_true", help="allow write phases when available")
     apply.add_argument("--install-gsd", action="store_true", help="allow explicit device/runtime-level GSD install")
-    apply.add_argument("--skip-gsd-check", action="store_true", help="skip GSD runtime status check")
+    apply.add_argument("--skip-gsd-check", action="store_true", help="skip GSD runtime status check; intended for CI/tests or when you intentionally manage GSD separately")
     apply.add_argument("--sync-gsd", dest="sync_gsd", action="store_true", help="preview GSD config sync")
     apply.add_argument("--no-sync-gsd", dest="sync_gsd", action="store_false", help="skip GSD config sync")
     apply.set_defaults(sync_gsd=None)
@@ -96,7 +96,7 @@ def _parser() -> argparse.ArgumentParser:
     for name in ("status", "install", "update", "verify"):
         gsd_cmd = gsd_sub.add_parser(name, help=f"{name} GSD Core for a runtime")
         gsd_cmd.add_argument("path", nargs="?", default=".")
-        gsd_cmd.add_argument("--runtime", choices=["auto", "claude", "codex", "cursor"], default="claude")
+        gsd_cmd.add_argument("--runtime", choices=["auto", "claude"], default="claude", help="GSD runtime; codex/cursor support depends on upstream GSD Core and is not yet a stable option")
         gsd_cmd.add_argument("--scope", choices=["global", "project"], default="global")
         gsd_cmd.add_argument("--version", default=GSD_PINNED_VERSION)
         gsd_cmd.add_argument("--dry-run", action="store_true", help="preview without executing installer")
@@ -157,6 +157,7 @@ def _parser() -> argparse.ArgumentParser:
 
     diagnose = sub.add_parser("doctor", help="check Python, Git, directories, resources, GSD, and tools")
     diagnose.add_argument("path", nargs="?", default=".")
+    diagnose.add_argument("--mode", choices=["preflight", "audit"], default="preflight", help="preflight (before first apply) or audit (after apply)")
     diagnose.add_argument("--json", action="store_true", help="output JSON")
     diagnose.add_argument("--ci", action="store_true", help="return CI-friendly environment exit codes")
 
@@ -383,11 +384,11 @@ def _print_migration_report(args) -> int:
     return 0
 
 
-def _doctor_payload(path: Path) -> dict[str, object]:
+def _doctor_payload(path: Path, mode: str = "preflight") -> dict[str, object]:
     checks = []
     summary = {"PASS": 0, "WARN": 0, "FAIL": 0}
     hard_fail_indexes = {0, 2, 3, 4, 5}
-    for index, (label, ok, detail) in enumerate(doctor(path)):
+    for index, (label, ok, detail) in enumerate(doctor(path, mode=mode)):
         status = "PASS" if ok else ("FAIL" if index in hard_fail_indexes else "WARN")
         summary[status] += 1
         checks.append(
@@ -399,14 +400,16 @@ def _doctor_payload(path: Path) -> dict[str, object]:
                 "detail": detail,
             }
         )
-    return {"project_root": str(Path(path).expanduser().resolve()), "summary": summary, "checks": checks}
+    return {"project_root": str(Path(path).expanduser().resolve()), "mode": mode, "summary": summary, "checks": checks}
 
 
 def _print_doctor(args) -> int:
-    payload = _doctor_payload(Path(args.path))
+    mode = getattr(args, "mode", "preflight")
+    payload = _doctor_payload(Path(args.path), mode=mode)
     if args.json:
         _print_json(payload)
     else:
+        print(f"Mode: {payload['mode']}")
         for check in payload["checks"]:
             print(f"[{check['status']}] {check['label']}: {check['detail']}")
     return 3 if payload["summary"]["FAIL"] else 0
@@ -435,7 +438,13 @@ def _print_status(args) -> int:
         + f" ({planned_workflow.get('scope') or 'unknown'}); GSD runtime: {runtime.get('status') or 'unknown'}"
     )
     packs = status["packs"]
-    print("Installed Packs: " + (", ".join(sorted(packs["installed"])) or "none"))
+    installed_packs = packs["installed"]
+    if isinstance(installed_packs, dict):
+        for pack_id, info in sorted(installed_packs.items()):
+            status_label = info.get("status", "unknown") if isinstance(info, dict) else "installed"
+            print(f"- {pack_id}: {status_label}")
+    else:
+        print("Installed Packs: " + (", ".join(sorted(installed_packs)) or "none"))
     print("Planned Packs: " + (", ".join(packs["planned"]) or "none"))
     source_lock = status["source_lock"]
     print(f"Source lock: {source_lock['status']} ({source_lock['source_count']} source(s))")
@@ -540,6 +549,24 @@ def _print_apply(args) -> int:
         print(f"Workflow: {report.plan.workflow}")
         print(f"Packs: {', '.join(report.plan.packs) if report.plan.packs else 'none'}")
         print(f"Status: {report.status}")
+        if report.operation_id:
+            print(f"Operation: {report.operation_id}")
+        if report.backup_id:
+            print(f"Backup: {report.backup_id}")
+        if report.sources_locked:
+            print("Source lock: .claude/ecc-sources.lock.json")
+        if report.operation_id:
+            print()
+            print("Rollback:")
+            print(f"  ecc-init rollback . --operation-id {report.operation_id}")
+        if report.device_side_effects:
+            print()
+            print("NOTE: Device/runtime-level side effects were produced.")
+            print("These are NOT covered by project rollback:")
+            for effect in report.device_side_effects:
+                print(f"  - {effect['type']}: {effect['message']}")
+        if report.config_report and report.config_report.get("initialized"):
+            print(f"GSD config: {'synced' if report.config_report.get('changed') else 'unchanged'}")
         for warning in report.warnings:
             print(f"[warning] {warning}")
         for error in report.errors:

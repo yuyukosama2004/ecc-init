@@ -23,6 +23,8 @@
 
 `ecc-init init .` now defaults to the GSD declarative plan. It previews the selected workflow, Packs, file operations, and pinned external commands without installing legacy workflow skills.
 
+GSD Core (`@opengsd/gsd-core@1.6.1`) requires **Node.js >= 22** and **npm >= 10**. `ecc-init gsd status` checks the toolchain before install.
+
 GSD Core is a device/runtime-level workflow kernel. Install it once for the runtime you use, for example:
 
 ```powershell
