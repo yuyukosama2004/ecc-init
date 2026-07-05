@@ -17,6 +17,7 @@ from ecc_init.cli import main
         ["status", "--help"],
         ["update", "--help"],
         ["doctor", "--help"],
+        ["gsd", "--help"],
         ["rollback", "--help"],
         ["remove", "--help"],
         ["migrate", "--help"],

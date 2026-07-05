@@ -1,19 +1,20 @@
 # Implementation Status
 
 ## Current phase
-- Phase: 11 Security, CI, and release documentation
-- Batch: 2026-07-04 continuation after phase 10 batch
+- Phase: Post-alpha batch 3, fixed GitHub archive apply closure
+- Batch: 2026-07-04 explicit pinned GitHub archive projection
 - Branch: main
-- Started: 2026-07-03 Asia/Shanghai
+- Started: 2026-07-04 Asia/Shanghai
 
 ## Scope
-- In scope: 0.2.0a0 alpha versioning; GSD-first default `init`; legacy `init --legacy` compatibility; GitHub Actions OS/Python CI matrix; wheel build/install smoke; pipx install smoke; nightly network E2E kept out of ordinary CI; archive, symlink, subprocess, and package-data security tests; package source/notice/security/migration/architecture documentation; release dry-run script; and phase 11 verification evidence.
-- Out of scope: publishing a PyPI release, modifying or vendoring GSD Core, executing unpinned installers in tests, deleting user-modified Skill files, and making validate-only `apply` perform full transactional installation.
+- In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; `.claude/ecc-sources.lock.json`; apply operation receipts; apply rollback by operation id; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, user-file preservation, and rollback.
+- Out of scope: copying, vendoring, forking, or modifying GSD Core; real external_cli/Anthropic/Vercel/UI UX Pro Max installs; adding new Packs; global component writes; switching default Packs away from bundled fallbacks; GitHub archive directory projection; deleting user files; executing unpinned installers in tests.
 
 ## Baseline
 - Test command: `python -m pytest`
-- Result: initial system Python failed before tests because `pytest` was not installed.
-- Known pre-existing failures: none after creating a temporary test venv at `%TEMP%\ecc-init-pytest-venv`, installing pinned `pytest==8.4.1`, installing this repository editable in that venv, and running the pre-change suite: `9 passed`.
+- Result: bare command failed in this working tree because `ecc_init` is not installed and `PYTHONPATH` was not set; collection reported `ModuleNotFoundError: No module named 'ecc_init'`.
+- Known pre-existing failures: with the repository test environment (`$env:PYTHONPATH='src'`), the pre-change suite passed with `113 passed, 4 skipped`.
+- Git baseline: `git status --short` showed only untracked `CODEX_NEXT_PLAN_GSD_APPLY.md`; branch was `main`; `git log -5 --oneline` was `6fff8ca`, `c855757`, `1499add`, `4e32b6c`, `d86c935`.
 
 ## Completed
 - [x] Confirmed current repository path is `D:\项目\ecc-init`.
@@ -116,6 +117,31 @@
 - [x] Added `ARCHITECTURE.md`, `MIGRATION.md`, `NOTICE.md`, `SECURITY.md`, and `SOURCE_POLICY.md`.
 - [x] Added `docs/e2e/0.2.0-alpha.md` mapping acceptance scenarios to automated tests and manual smoke evidence.
 - [x] Updated README for 0.2.0a0 alpha behavior, GSD default init, legacy opt-in, update/remove/rollback demos, and source boundaries.
+- [x] Added `ecc-init gsd status/install/update/verify` command group.
+- [x] Added `GsdInstallOptions` and runtime/scope-aware GSD install command planning.
+- [x] Changed GSD install/update to use the pinned official installer shape, including `--claude --global` for Claude global.
+- [x] Added GSD statuses for `not_installed`, `installed_verified`, `installed_unverified`, and `blocked_environment`.
+- [x] Kept GSD install/update dry-run by default unless `--yes` is supplied.
+- [x] Changed declarative plan external operation preview to include GSD runtime/scope flags.
+- [x] Changed `init --yes` to enter the project-level apply path instead of using lifecycle workflow update as a pseudo-install.
+- [x] Added `--install-gsd` to `init` and `apply` as the explicit gate for device/runtime-level GSD install.
+- [x] Added `src/ecc_init/apply.py` with `ApplyOptions`, `ApplyReport`, plan loading, project-root validation, registry validation, operation-id checks, path-boundary checks, GSD status reporting, and GSD config sync preview.
+- [x] Changed `ecc-init apply` from validate-only output to structured ApplyReport dry-run/preflight output.
+- [x] Added tests for GSD CLI JSON, GSD installer command shape, local/project scope, update installer semantics, Windows command suffix, init/apply boundary, project-root mismatch, and apply dry-run no-write behavior.
+- [x] Updated README and ARCHITECTURE to distinguish one-time GSD runtime install from per-project Pack apply.
+- [x] Added `src/ecc_init/packs/installer.py` for transaction-backed bundled project-scope component installation.
+- [x] Changed project Source Lock output to `.claude/ecc-sources.lock.json`.
+- [x] Changed `apply --yes` from preflight-only to bundled Pack file writes with `Transaction`, state v2 managed-file records, Source Lock, operation receipt, and rollback support.
+- [x] Added apply preservation behavior for existing unowned files and user-modified managed files.
+- [x] Kept non-project component writes skipped with warnings and unsupported required non-bundled sources blocked.
+- [x] Changed GSD install/update dry-runs so they do not execute Node version subprocess checks.
+- [x] Updated tests for bundled apply write path, source lock/state/receipt output, rollback by operation id, unowned file preservation, and `init --yes` project apply behavior.
+- [x] Added fixed GitHub archive project component projection through the apply installer for explicit single-file components.
+- [x] Reused the existing pinned GitHub archive provider, cache, offline mode, source path, integrity, safe extraction, and symlink/traversal protections.
+- [x] Changed apply Source Lock generation to lock only sources that actually wrote files.
+- [x] Added optional GitHub archive skip behavior so missing optional archives warn without blocking unrelated bundled writes.
+- [x] Kept default registry/Packs on bundled fallback resources; no new Packs or real third-party installers were added.
+- [x] Added tests for offline cached fixed GitHub archive apply and optional missing archive skip/no-lock behavior.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -268,6 +294,46 @@
 - Evidence: Phase 11 requires symlink tests, and symlink-following could copy or expose files outside the intended source tree.
 - Consequence: `safe_extract_zip` and `project_directory` fail closed on symlink inputs.
 
+- ID: D-2026-07-04-21
+- Decision: Treat `ecc-init gsd *` as the device/runtime-level GSD Core command surface.
+- Evidence: `CODEX_NEXT_PLAN_GSD_APPLY.md` separates `ecc-init gsd install --yes` from project-level `plan/apply`, and the official GSD install guide documents runtime/scope flags such as `--claude --global` and `--claude --local`.
+- Consequence: GSD install/update commands now include pinned package, runtime, and scope; project `init` no longer silently performs device-level GSD install.
+
+- ID: D-2026-07-04-22
+- Decision: Use the official pinned GSD installer command for both install and update surfaces in this batch.
+- Evidence: The next plan calls out the old `npm install -g @opengsd/gsd-core@1.6.1` update surface as misleading for runtime installation semantics.
+- Consequence: `GsdWorkflowAdapter.update()` now plans/runs `npx -y @opengsd/gsd-core@1.6.1 --<runtime> --<scope>` instead of `npm install -g`.
+
+- ID: D-2026-07-04-23
+- Decision: Introduce `ApplyReport` and block write phases until component installation, Source Lock, Receipt, and rollback are implemented transactionally.
+- Evidence: The first batch requires apply dry-run/report skeleton and also forbids a temporary script that bypasses transaction/receipt/source-lock design.
+- Consequence: First-batch `apply --dry-run --json` became stable and no-write; the bundled project-scope write path was intentionally deferred until D-2026-07-04-25.
+
+- ID: D-2026-07-04-24
+- Decision: Route `init --yes` through project-level apply, not lifecycle update.
+- Evidence: The next plan explicitly forbids continuing to treat workflow update as GSD install.
+- Consequence: `init --yes` no longer calls `update_project(update_workflow=True)`; `--install-gsd` is the only explicit path that can call the GSD installer from init.
+
+- ID: D-2026-07-04-25
+- Decision: Unblock only bundled project-scope component writes in the first transaction-backed apply batch.
+- Evidence: The current target requires not leaving apply validate-only, while still forbidding real external_cli/Anthropic/Vercel installs and broader source integration.
+- Consequence: `apply --yes` writes bundled project files with state, Source Lock, receipt, and rollback; global components are skipped with warnings and unsupported required non-bundled sources fail closed.
+
+- ID: D-2026-07-04-26
+- Decision: Store project source locks at `.claude/ecc-sources.lock.json`.
+- Evidence: The GSD apply plan separates project Pack source state from GSD Core runtime installation state.
+- Consequence: Source locks live alongside ecc-init project state and can be included in transaction receipts and rollback.
+
+- ID: D-2026-07-04-27
+- Decision: Support fixed GitHub archive apply only for explicit project-scope single-file components in this batch.
+- Evidence: The next plan requires completing bundled and fixed GitHub archive apply closure while forbidding real external_cli/Anthropic/Vercel installs and new Pack expansion.
+- Consequence: The installer can project pinned archive content through the existing source provider/cache path, while default Packs remain deterministic bundled fallbacks.
+
+- ID: D-2026-07-04-28
+- Decision: Lock only sources that actually wrote files during apply.
+- Evidence: Optional archive components can be skipped when offline cache is absent, and preserved user files can prevent writes.
+- Consequence: `.claude/ecc-sources.lock.json`, state, and receipts do not falsely record skipped or preserved sources as installed.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -326,19 +392,44 @@
 | `$env:PYTHONPATH='src'; python scripts\release_dry_run.py` | Passed | created a pinned temporary build venv, built `ecc_init-0.2.0a0-py3-none-any.whl`, checked wheel contents and entry point, and ran wheel CLI smoke |
 | `%TEMP%\ecc-init-release-venv-codex\Scripts\python.exe -m pipx install . --force` with temporary `PIPX_HOME`/`PIPX_BIN_DIR` | Passed | installed `ecc-init 0.2.0a0` and `ecc-init --version` returned `ecc-init 0.2.0a0` |
 | GitHub Actions CI on pushed `main` and `v0.2.0-alpha.0` | Passed | Windows/Linux/macOS Python 3.10/3.12 matrix and pipx smoke completed successfully |
+| `git status --short` | Passed | baseline showed only `?? CODEX_NEXT_PLAN_GSD_APPLY.md` |
+| `git branch --show-current` | Passed | `main` |
+| `git log -5 --oneline` | Passed | `6fff8ca`, `c855757`, `1499add`, `4e32b6c`, `d86c935` |
+| `python -m pytest` | Failed in bare environment | collection failed with `ModuleNotFoundError: No module named 'ecc_init'` because the package was not installed and `PYTHONPATH` was unset |
+| `$env:PYTHONPATH='src'; python -m pytest` before edits | Passed | `113 passed, 4 skipped` |
+| `python -m compileall -q src scripts` before edits | Passed | compiled source and scripts |
+| `git diff --check` before edits | Passed | exit code 0 |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_workflows.py tests\test_gsd_install_cli.py tests\test_apply.py tests\test_cli.py tests\test_lifecycle_cli.py` | Passed | `52 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `124 passed, 4 skipped` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src scripts` | Passed | compiled source and scripts after GSD/apply changes |
+| `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
+| `python -m pytest` after edits | Failed in bare environment | collection failed with `ModuleNotFoundError: No module named 'ecc_init'`; use editable install or `PYTHONPATH=src` for this src-layout repo |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_workflows.py tests\test_gsd_install_cli.py tests\test_apply.py tests\test_transaction.py tests\test_sources.py tests\test_cli.py tests\test_lifecycle_cli.py` | Passed | `65 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `127 passed, 4 skipped` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src scripts` | Passed | compiled source and scripts after bundled apply changes |
+| `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_apply.py tests\test_sources.py` | Passed | `15 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_workflows.py tests\test_gsd_install_cli.py tests\test_apply.py tests\test_transaction.py tests\test_sources.py tests\test_cli.py tests\test_lifecycle_cli.py` | Passed | `67 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `129 passed, 4 skipped` |
+| `$env:PYTHONPATH='src'; python -m compileall -q src scripts` | Passed | compiled source and scripts after fixed GitHub archive apply changes |
+| `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7; `NOTICE.md` and package metadata now carry the release attribution record.
-- Legacy `rollback_backup` still performs backup-level rollback; partial rollback protection currently lives in `Transaction.rollback` for future transaction-managed operations.
+- Legacy `rollback_backup` still performs backup-level rollback; bundled apply writes now use `Transaction.rollback` for partial rollback protection.
 - `sources verify` does not prove remote archive availability during ordinary local checks; opt-in/nightly network E2E covers pinned npm and GitHub source availability.
 - `workflow status` can fail on machines without Node.js 18+/npm/npx; this is reported as a local environment check, not a code failure.
 - `sync-gsd` does not validate global Skill symlink escapes beyond requiring `SKILL.md` existence; trusted global roots remain a future hardening item.
 - If legacy workflow skills were modified by the user, migration preserves them and leaves manual cleanup for the report-guided review path.
 - Frontend Vercel, Anthropic, Playwright, and GSD Browser integrations are declaration/detection surfaces only; real third-party installs remain future integration work.
-- Fixed ECC source declaration is verified for immutability, but real archive retrieval and component projection remain future source integration work.
-- `ecc-init apply` is validate-only in 0.2.0a0; full install-plan application remains future work.
+- Fixed GitHub archive single-file project projection is supported for explicit components; default Pack registry entries still use bundled fallbacks, and archive directory projection remains future work.
+- `ecc-init apply --yes` installs bundled and explicit pinned GitHub archive project-scope files transactionally; global components and real external installers remain guarded or unsupported.
+- `init --yes` now routes to project-level apply and can install bundled project files; it still does not install GSD Core unless `--install-gsd` is explicit.
+- `apply --install-gsd --yes` can invoke the pinned GSD installer explicitly, but the device/runtime-level GSD install remains outside project file rollback.
+- Apply currently previews GSD config sync; writing `.planning/config.json` as part of the apply transaction remains future work.
 - `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in 0.2.0a0.
 - `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
 ## Next permitted batch
-- 0.2.0a0 alpha phase 11 is complete. Next work should start only from the next plan-approved post-alpha batch.
+- Wire apply GSD config sync writes transactionally now that bundled and explicit pinned GitHub archive file projection semantics are stable.
+- Expand GitHub archive directory projection or default Pack source switching only after an explicit source-policy decision; keep external_cli/Anthropic/Vercel real installs out of scope.

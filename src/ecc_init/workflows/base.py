@@ -63,4 +63,14 @@ class WorkflowResult:
 
     @property
     def ok(self) -> bool:
-        return self.status in {"ok", "planned", "installed", "removed"} and all(check.ok for check in self.checks)
+        return self.status in {
+            "ok",
+            "planned",
+            "installed",
+            "installed_verified",
+            "installed_unverified",
+            "updated",
+            "updated_verified",
+            "updated_unverified",
+            "removed",
+        } and all(check.ok for check in self.checks)

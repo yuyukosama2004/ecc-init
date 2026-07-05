@@ -28,6 +28,10 @@ def test_explicit_workflow_is_preserved() -> None:
     assert _normalize_argv(["workflow", "status"]) == ["workflow", "status"]
 
 
+def test_explicit_gsd_is_preserved() -> None:
+    assert _normalize_argv(["gsd", "status"]) == ["gsd", "status"]
+
+
 def test_explicit_sync_gsd_is_preserved() -> None:
     assert _normalize_argv(["sync-gsd", "."]) == ["sync-gsd", "."]
 
@@ -53,7 +57,12 @@ def test_plan_json_does_not_write_project_files(tmp_path: Path, monkeypatch, cap
     assert payload["schema_version"] == 2
     assert payload["workflow"] == "gsd"
     assert "python-fastapi" in payload["packs"]
-    assert payload["external_operations"][0]["args"] == ["-y", "@opengsd/gsd-core@1.6.1"]
+    assert payload["external_operations"][0]["args"] == [
+        "-y",
+        "@opengsd/gsd-core@1.6.1",
+        "--claude",
+        "--global",
+    ]
     assert not (project / ".claude").exists()
     assert not (project / "docs").exists()
 

@@ -152,10 +152,10 @@ def build_registry_install_plan(
                 ExternalOperation(
                     operation_id="external:gsd-install",
                     command="npx",
-                    args=("-y", f"{source.package}@{source.version}"),
+                    args=("-y", f"{source.package}@{source.version}", "--claude", "--global"),
                     dry_run=True,
                     required=True,
-                    description="Pinned GSD Core installer command preview.",
+                    description="Pinned GSD Core installer command preview for Claude global runtime.",
                 )
             )
     return InstallPlan(

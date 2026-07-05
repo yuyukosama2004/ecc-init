@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from ecc_init.paths import AppPaths
-from ecc_init.workflows import GSD_PACKAGE, GSD_PINNED_VERSION, GsdWorkflowAdapter
+from ecc_init.workflows import GSD_PACKAGE, GSD_PINNED_VERSION, GsdInstallOptions, GsdWorkflowAdapter
 from ecc_init.workflows.base import CommandResult
 
 
@@ -33,13 +33,13 @@ def test_gsd_install_dry_run_plans_pinned_command(monkeypatch, tmp_path: Path) -
     result = adapter.install(AppPaths.build(tmp_path), dry_run=True)
 
     assert result.status == "planned"
-    assert result.commands[0].args[-1] == f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}"
+    command = result.commands[0].args
+    assert command[0].replace("\\", "/").endswith(("npx", "npx.cmd"))
+    assert command[1:] == ("-y", f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}", "--claude", "--global")
     assert result.logs == []
-    assert len(runner.calls) == 1
-    node_call = runner.calls[0]
-    assert node_call[0].replace("\\", "/").endswith(("/node", "/node.cmd"))
-    assert node_call[1:] == ("--version",)
-    assert any("Claude Home affected scope" in warning for warning in result.warnings)
+    assert runner.calls == []
+    assert any(check.check_id == "node-version" and check.detail == "not checked during dry-run" for check in result.checks)
+    assert any("install affects runtime configuration" in warning for warning in result.warnings)
 
 
 def test_gsd_install_runs_only_after_environment_ok(monkeypatch, tmp_path: Path) -> None:
@@ -49,8 +49,8 @@ def test_gsd_install_runs_only_after_environment_ok(monkeypatch, tmp_path: Path)
 
     result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
 
-    assert result.status == "installed"
-    assert result.logs[0].args[-1] == f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}"
+    assert result.status == "installed_unverified"
+    assert result.logs[0].args[-3:] == (f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}", "--claude", "--global")
 
 
 def test_gsd_install_blocks_when_node_missing(monkeypatch, tmp_path: Path) -> None:
@@ -60,7 +60,7 @@ def test_gsd_install_blocks_when_node_missing(monkeypatch, tmp_path: Path) -> No
 
     result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
 
-    assert result.status == "blocked"
+    assert result.status == "blocked_environment"
     assert runner.calls == []
     assert any(check.check_id == "node-present" and not check.ok for check in result.checks)
 
@@ -71,8 +71,39 @@ def test_gsd_install_blocks_when_node_too_old(monkeypatch, tmp_path: Path) -> No
 
     result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
 
-    assert result.status == "blocked"
+    assert result.status == "blocked_environment"
     assert any(check.check_id == "node-version" and not check.ok for check in result.checks)
+
+
+def test_gsd_local_project_command_uses_local_scope(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    adapter = GsdWorkflowAdapter(FakeRunner())
+
+    result = adapter.install(
+        AppPaths.build(tmp_path),
+        GsdInstallOptions(scope="project", dry_run=True),
+    )
+
+    assert result.commands[0].args[-2:] == ("--claude", "--local")
+
+
+def test_gsd_update_reuses_official_installer(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    adapter = GsdWorkflowAdapter(FakeRunner())
+
+    result = adapter.update(AppPaths.build(tmp_path), dry_run=True)
+
+    assert result.commands[0].args[0].replace("\\", "/").endswith(("npx", "npx.cmd"))
+    assert result.commands[0].args[-3:] == (f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}", "--claude", "--global")
+
+
+def test_gsd_windows_command_suffix_is_preserved(monkeypatch) -> None:
+    monkeypatch.setattr("ecc_init.workflows.gsd.os.name", "nt")
+    adapter = GsdWorkflowAdapter(FakeRunner())
+
+    command = adapter.install_command()
+
+    assert command.args[0] == "npx.cmd"
 
 
 def test_gsd_inspect_and_remove_are_safe_strategy_only(tmp_path: Path) -> None:

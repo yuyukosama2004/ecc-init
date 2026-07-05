@@ -64,4 +64,4 @@ class AppPaths:
 
     @property
     def source_lock(self) -> Path:
-        return self.project_root / ".claude" / "ecc-init-source-lock.json"
+        return self.project_root / ".claude" / "ecc-sources.lock.json"

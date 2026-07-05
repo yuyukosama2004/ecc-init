@@ -110,7 +110,13 @@ class Transaction:
     def record_config(self, path: Path, action: str, before: dict[str, Any], after: dict[str, Any]) -> None:
         self.config_journal.append(ConfigJournalEntry(path=path, action=action, before=before, after=after))
 
-    def finish(self, *, result: str = "success") -> Receipt:
+    def finish(
+        self,
+        *,
+        result: str = "success",
+        packs: list[dict[str, Any]] | None = None,
+        sources: list[dict[str, Any]] | None = None,
+    ) -> Receipt:
         backup_id = self._finished_backup_id or self.backup.finish()
         self._finished_backup_id = backup_id
         receipt = Receipt(
@@ -118,6 +124,8 @@ class Transaction:
             created_at=now_iso(),
             project_root=self.project_root.resolve(),
             workflow={"id": self.workflow_id, "status": result},
+            packs=packs or [],
+            sources=sources or [],
             files=[
                 {
                     "path": str(entry.path),

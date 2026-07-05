@@ -23,13 +23,37 @@
 
 `ecc-init init .` now defaults to the GSD declarative plan. It previews the selected workflow, Packs, file operations, and pinned external commands without installing legacy workflow skills.
 
+GSD Core is a device/runtime-level workflow kernel. Install it once for the runtime you use, for example:
+
+```powershell
+ecc-init gsd status --json
+ecc-init gsd install --yes
+ecc-init gsd verify
+```
+
+For Claude global installs, `ecc-init` plans the pinned official installer as:
+
+```powershell
+npx -y @opengsd/gsd-core@1.6.1 --claude --global
+```
+
+Project Packs are separate. They are selected per project from the declarative registry and applied through an InstallPlan:
+
+```powershell
+ecc-init plan . --output ecc-plan.json
+ecc-init apply ecc-plan.json --dry-run --json
+ecc-init apply ecc-plan.json --yes --json
+```
+
+`apply` now produces a structured `ApplyReport` with plan validation, project-root validation, planned files, GSD status, and optional GSD config sync preview. With `--yes`, the transactional apply path installs bundled project-scope Pack files and explicitly configured pinned GitHub archive project files, writes `.claude/ecc-sources.lock.json`, updates state v2 managed-file ownership, writes an operation receipt, and can be rolled back by operation id.
+
 Legacy 0.1.x writes are still available for migration compatibility:
 
 ```powershell
 ecc-init init . --legacy --offline
 ```
 
-GSD Core is external. `ecc-init` plans the pinned official package `@opengsd/gsd-core@1.6.1`; it does not fork, vendor, or modify GSD Core.
+GSD Core is external. `ecc-init` plans the pinned official package `@opengsd/gsd-core@1.6.1`; it does not fork, vendor, copy selected GSD internals, or modify GSD Core.
 
 ## 支持的技术栈
 
@@ -54,7 +78,7 @@ React projects are selected for the declarative `frontend-essential` Pack. The P
 
 The declarative Pack registry includes Python/FastAPI, RAG Python, and Java/Spring stack Packs. Components are filtered by detected stack evidence, so a plain Python project receives Python guidance without FastAPI, a LangChain-only project receives LangChain guidance without LangGraph, and a Java-only project receives Java guidance without Spring Boot.
 
-Project stack skills include frontmatter metadata with `source_id` and `content_version`. ECC-derived source policy is pinned to a fixed `affaan-m/ECC` commit in the registry, while bundled fallback resources keep offline plan generation deterministic.
+Project stack skills include frontmatter metadata with `source_id` and `content_version`. ECC-derived source policy is pinned to a fixed `affaan-m/ECC` commit in the registry, while bundled fallback resources keep ordinary offline plan generation deterministic. Explicit pinned GitHub archive components can be projected by apply when their fixed archive is available or fetching is allowed.
 
 ## 全局 Skill
 
@@ -114,6 +138,12 @@ ecc-init D:\Projects\my-demo
 
 ```powershell
 ecc-init plan
+ecc-init apply ecc-plan.json --dry-run --json
+ecc-init gsd status
+ecc-init gsd install --dry-run --json
+ecc-init gsd install --yes
+ecc-init gsd update --dry-run --json
+ecc-init gsd verify
 ecc-init packs list
 ecc-init packs show frontend-essential
 ecc-init sources list
@@ -138,6 +168,8 @@ PowerShell preview commands are write-free:
 
 ```powershell
 ecc-init init . --dry-run --json
+ecc-init gsd install --dry-run --json
+ecc-init apply ecc-plan.json --dry-run --json
 ecc-init update . --check --json
 ecc-init update . --packs --dry-run --json
 ecc-init remove . --pack frontend-essential --json
@@ -147,11 +179,13 @@ ecc-init doctor . --json
 Write operations require explicit non-interactive confirmation:
 
 ```powershell
+ecc-init gsd install --yes
+ecc-init apply ecc-plan.json --yes --json
 ecc-init update . --packs --yes --json
 ecc-init remove . --pack frontend-essential --yes --json
 ```
 
-`remove` only edits ecc-init managed GSD config bindings in this phase. It does not delete user-modified Skill files or uninstall GSD Core.
+`init . --yes` enters the project-level apply path and does not install GSD Core by default. Use `init . --yes --install-gsd` only when you intentionally want the device/runtime-level GSD install step included. `apply --yes` currently writes bundled and explicit pinned GitHub archive project-scope Pack files transactionally; non-project and unsupported component installs are guarded. `remove` only edits ecc-init managed GSD config bindings in this phase. It does not delete user-modified Skill files or uninstall GSD Core.
 
 ### Legacy v1 migration
 
