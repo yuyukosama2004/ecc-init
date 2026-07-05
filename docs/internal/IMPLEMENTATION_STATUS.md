@@ -508,6 +508,13 @@
 | `git diff --check` | Passed | No whitespace issues |
 | `python -m pytest tests/test_gsd_install_cli.py tests/test_apply.py tests/test_workflows.py tests/test_lifecycle_cli.py tests/test_e2e_apply_bundled.py -v` | 52 passed | Core GSD/apply/E2E coverage |
 
+## Batch 9 correction (2026-07-05 how-to docs)
+- The previous completion audit was too broad: `CODEX_NEXT_PLAN_GSD_APPLY.md` section 16 also required three new how-to documents.
+- Added `docs/how-to/install-gsd.md`, `docs/how-to/apply-packs.md`, and `docs/how-to/audit-and-rollback.md`.
+- Added release/security test coverage so the required how-to documents are checked by pytest.
+- README now links the how-to documents from the 0.2.0 Alpha behavior section.
+- Verification after correction: `$env:PYTHONPATH='src'; python -m pytest tests/test_security_release.py` passed with `9 passed, 2 skipped`; `$env:PYTHONPATH='src'; python -m pytest` passed with `139 passed, 4 skipped`; `python -m compileall -q src scripts` passed; `git diff --check` passed with CRLF normalization warnings only.
+
 ## CODEX_NEXT_PLAN_GSD_APPLY.md 完成度评估
 
 本计划共 8 个 Phase (A–H)，全部已在 0.2.0a1 中完成：

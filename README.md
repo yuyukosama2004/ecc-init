@@ -55,6 +55,12 @@ ecc-init init . --legacy --offline
 
 GSD Core is external. `ecc-init` plans the pinned official package `@opengsd/gsd-core@1.6.1`; it does not fork, vendor, copy selected GSD internals, or modify GSD Core.
 
+How-to guides:
+
+- [Install GSD Core](docs/how-to/install-gsd.md)
+- [Apply Project Packs](docs/how-to/apply-packs.md)
+- [Audit And Roll Back](docs/how-to/audit-and-rollback.md)
+
 ## 支持的技术栈
 
 首版支持自动识别：
