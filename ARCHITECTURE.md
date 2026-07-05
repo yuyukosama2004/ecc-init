@@ -17,7 +17,7 @@
 - Workflow layer: `src/ecc_init/workflows/`
   Provides the GSD adapter with device/runtime-level status, verify, install, and update semantics for pinned `@opengsd/gsd-core@1.6.1`. The adapter generates runtime/scope-specific commands such as `npx -y @opengsd/gsd-core@1.6.1 --claude --global`.
 - Apply layer: `src/ecc_init/apply.py`
-  Loads InstallPlan JSON, validates schema-derived plan content, checks project-root and path boundaries, reports GSD status, previews GSD config sync, and returns a stable ApplyReport. With `--yes`, it transactionally installs bundled project-scope Pack files and explicitly configured pinned GitHub archive project files, writes `.claude/ecc-sources.lock.json`, updates managed-file state, records an operation receipt, and supports rollback by operation id. Non-project component writes and unsupported sources remain guarded.
+  Loads InstallPlan JSON, validates schema-derived plan content, checks project-root and path boundaries, reports GSD status, reports GSD config sync, and returns a stable ApplyReport. With `--yes`, it transactionally installs bundled project-scope Pack files and explicitly configured pinned GitHub archive project files, writes `.claude/ecc-sources.lock.json`, merges existing `.planning/config.json`, updates managed-file state, records an operation receipt with config changes, and supports rollback by operation id. Non-project component writes and unsupported sources remain guarded.
 - Migration layer: `src/ecc_init/migration/`
   Detects and migrates legacy v1 managed workflow sections and deprecated workflow skills.
 - Resource layer: `src/ecc_init/resources/`
@@ -70,6 +70,7 @@ Application services
 - GSD Core is not installed during every project init; Pack installation is the project-level operation.
 - Project apply does not run the GSD installer unless `--install-gsd` is explicitly supplied.
 - Pinned GitHub archive apply requires a fixed commit ref and records locks only for sources that actually wrote files.
+- Project apply syncs GSD config only when `.planning/config.json` already exists or the user explicitly previews sync; it does not initialize GSD projects.
 - Writes that can affect user files are backed up and receipt-recorded.
 - User-modified legacy skills are preserved during migration.
 - Pack removal edits only managed GSD bindings and preserves shared entries unless `remove --all` is explicitly requested.

@@ -138,6 +138,7 @@ def test_apply_yes_installs_bundled_project_files_state_lock_and_receipt(
     assert state["schema_version"] == 2
     assert "python-fastapi" in state["packs"]
     assert state["managed_files"]
+    assert not (project / ".planning" / "config.json").exists()
     assert len(receipts) == 1
     receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
     assert receipt["result"] == "success"
@@ -164,6 +165,74 @@ def test_apply_yes_can_be_rolled_back_by_operation_id(tmp_path: Path, monkeypatc
     assert rollback_payload["restored"] > 0
     assert not (project / "docs" / "PROJECT_OVERVIEW.md").exists()
     assert not (project / ".claude" / "ecc-sources.lock.json").exists()
+
+
+def test_apply_yes_syncs_existing_gsd_config_and_rollback_restores_it(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "demo"
+    project.mkdir()
+    config = project / ".planning" / "config.json"
+    config.parent.mkdir(parents=True)
+    original_config = {
+        "parallelization": {"enabled": False},
+        "workflow": {"use_worktrees": False},
+    }
+    config.write_text(json.dumps(original_config), encoding="utf-8")
+    (project / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n', encoding="utf-8")
+    monkeypatch.setenv("ECC_INIT_HOME", str(tmp_path / "ecc-home"))
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
+    plan = build_registry_install_plan(project)
+    plan_path = project / "plan.json"
+    plan_path.write_text(plan.to_json(), encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    assert main(["apply", str(plan_path), "--yes", "--skip-gsd-check", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    written = json.loads(config.read_text(encoding="utf-8"))
+    receipts = list((tmp_path / "ecc-home" / "operations").glob("*/receipt.json"))
+
+    assert payload["status"] == "applied"
+    assert payload["config_report"]["initialized"] is True
+    assert payload["config_report"]["changed"] is True
+    assert written["parallelization"]["enabled"] is False
+    assert written["parallelization"]["max_concurrent_agents"] == 3
+    assert written["workflow"]["use_worktrees"] is False
+    assert ".claude/skills/python-patterns" in written["agent_skills"]["gsd-executor"]
+    assert ".claude/skills/fastapi-patterns" in written["agent_skills"]["gsd-executor"]
+    receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
+    assert receipt["config_changes"][0]["action"] == "sync-gsd"
+
+    assert main(["rollback", str(project), "--operation-id", payload["operation_id"], "--json"]) == 0
+    rollback_payload = json.loads(capsys.readouterr().out)
+
+    assert rollback_payload["restored"] > 0
+    assert json.loads(config.read_text(encoding="utf-8")) == original_config
+
+
+def test_apply_yes_no_sync_gsd_leaves_existing_config_unchanged(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "demo"
+    project.mkdir()
+    config = project / ".planning" / "config.json"
+    config.parent.mkdir(parents=True)
+    original_config = {"parallelization": {"enabled": False}}
+    config.write_text(json.dumps(original_config), encoding="utf-8")
+    (project / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n', encoding="utf-8")
+    monkeypatch.setenv("ECC_INIT_HOME", str(tmp_path / "ecc-home"))
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-home"))
+    plan = build_registry_install_plan(project)
+    plan_path = project / "plan.json"
+    plan_path.write_text(plan.to_json(), encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    assert main(["apply", str(plan_path), "--yes", "--skip-gsd-check", "--no-sync-gsd", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["status"] == "applied"
+    assert payload["config_report"] is None
+    assert json.loads(config.read_text(encoding="utf-8")) == original_config
 
 
 def test_apply_preserves_existing_unowned_files(tmp_path: Path, monkeypatch, capsys) -> None:

@@ -11,7 +11,7 @@ from .core.receipt import ReceiptStore
 from .core.transaction import Transaction
 from .errors import ConfigError
 from .packs import load_registry
-from .packs.gsd_bridge import build_gsd_config
+from .packs.gsd_bridge import ConfigSyncReport, build_gsd_config
 from .packs.installer import ComponentInstaller
 from .paths import AppPaths
 from .sources import BundledProvider, GitHubArchiveProvider, SourceLock, SourceLockStore
@@ -216,11 +216,14 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
     config_path = paths.project_root / ".planning" / "config.json"
     if sync_requested is None:
         sync_requested = config_path.exists()
-    if sync_requested:
-        report = build_gsd_config(paths.project_root, packs=plan.packs, dry_run=True)
-        config_report = report.to_dict()
-        warnings.extend(report.warnings)
-    elif not config_path.exists():
+    if sync_requested and options.dry_run:
+        try:
+            report = build_gsd_config(paths.project_root, packs=plan.packs)
+            config_report = report.to_dict()
+            warnings.extend(report.warnings)
+        except ConfigError as exc:
+            errors.append(str(exc))
+    elif not sync_requested and not config_path.exists():
         warnings.append("GSD config is not initialized; apply will not create .planning/config.json.")
 
     files_planned = [operation.to_dict() for operation in plan.file_operations]
@@ -276,6 +279,11 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
                 offline=options.offline,
                 source_ids={item.source_id for item in install_report.files_written},
             )
+            if sync_requested:
+                config_sync_report = build_gsd_config(paths.project_root, packs=plan.packs)
+                config_report = config_sync_report.to_dict()
+                warnings.extend(config_sync_report.warnings)
+                _write_gsd_config_sync(transaction, config_sync_report)
             if locks:
                 _write_source_lock(paths, transaction, locks)
             _write_project_state(paths, transaction, plan, install_report.files_written, locks, workflow_status)
@@ -399,6 +407,17 @@ def _write_source_lock(paths: AppPaths, transaction: Transaction, locks: dict[st
         "sources": {source_id: lock.to_dict() for source_id, lock in sorted(existing.items())},
     }
     transaction.write_text(paths.source_lock, json.dumps(payload, ensure_ascii=False, indent=2) + "\n", owner="source-lock")
+
+
+def _write_gsd_config_sync(transaction: Transaction, report: ConfigSyncReport) -> None:
+    if not report.initialized or not report.changed:
+        return
+    transaction.write_text(
+        report.config_path,
+        json.dumps(report.after, ensure_ascii=False, indent=2) + "\n",
+        owner="gsd-config",
+    )
+    transaction.record_config(report.config_path, "sync-gsd", report.before, report.after)
 
 
 def _write_project_state(

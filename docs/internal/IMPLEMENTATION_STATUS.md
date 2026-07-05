@@ -1,14 +1,14 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 3, fixed GitHub archive apply closure
-- Batch: 2026-07-04 explicit pinned GitHub archive projection
+- Phase: Post-alpha batch 4, transactional apply GSD config sync
+- Batch: 2026-07-05 apply sync-gsd integration
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
 
 ## Scope
-- In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; `.claude/ecc-sources.lock.json`; apply operation receipts; apply rollback by operation id; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, user-file preservation, and rollback.
-- Out of scope: copying, vendoring, forking, or modifying GSD Core; real external_cli/Anthropic/Vercel/UI UX Pro Max installs; adding new Packs; global component writes; switching default Packs away from bundled fallbacks; GitHub archive directory projection; deleting user files; executing unpinned installers in tests.
+- In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; transactional apply GSD config sync for existing `.planning/config.json`; `.claude/ecc-sources.lock.json`; apply operation receipts including config changes; apply rollback by operation id; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, existing GSD config sync, `--no-sync-gsd`, user-file preservation, and rollback.
+- Out of scope: copying, vendoring, forking, or modifying GSD Core; real external_cli/Anthropic/Vercel/UI UX Pro Max installs; adding new Packs; global component writes; switching default Packs away from bundled fallbacks; GitHub archive directory projection; creating `.planning/config.json` when GSD has not initialized the project; deleting user files; executing unpinned installers in tests.
 
 ## Baseline
 - Test command: `python -m pytest`
@@ -142,6 +142,12 @@
 - [x] Added optional GitHub archive skip behavior so missing optional archives warn without blocking unrelated bundled writes.
 - [x] Kept default registry/Packs on bundled fallback resources; no new Packs or real third-party installers were added.
 - [x] Added tests for offline cached fixed GitHub archive apply and optional missing archive skip/no-lock behavior.
+- [x] Wired apply GSD config sync into the apply transaction for existing `.planning/config.json`.
+- [x] Changed apply config sync to run after component writes so newly installed project Skills can be added to GSD `agent_skills`.
+- [x] Added apply receipt `config_changes` entries for transactional `sync-gsd` writes.
+- [x] Kept missing GSD config as warning-only; apply does not create `.planning/config.json`.
+- [x] Added `--no-sync-gsd` coverage to keep existing GSD config untouched when explicitly requested.
+- [x] Added rollback coverage proving apply restores a pre-existing GSD config after operation-id rollback.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -334,6 +340,16 @@
 - Evidence: Optional archive components can be skipped when offline cache is absent, and preserved user files can prevent writes.
 - Consequence: `.claude/ecc-sources.lock.json`, state, and receipts do not falsely record skipped or preserved sources as installed.
 
+- ID: D-2026-07-05-01
+- Decision: Run apply GSD config sync after component files are installed.
+- Evidence: `pack_agent_skill_additions` only injects `agent_skills` for directories that already contain `SKILL.md`.
+- Consequence: `apply --yes` can install project Skills and then transactionally merge them into existing `.planning/config.json` in the same operation.
+
+- ID: D-2026-07-05-02
+- Decision: Keep `.planning/config.json` creation outside apply.
+- Evidence: GSD initializes project config through its own workflow, and the next plan requires ecc-init not to create GSD projects silently.
+- Consequence: Missing GSD config remains a warning/report state; `apply --yes` writes config only when the file already exists and `--no-sync-gsd` was not supplied.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -413,6 +429,11 @@
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `129 passed, 4 skipped` |
 | `$env:PYTHONPATH='src'; python -m compileall -q src scripts` | Passed | compiled source and scripts after fixed GitHub archive apply changes |
 | `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_apply.py tests\test_gsd_bridge.py` | Passed | `19 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest tests\test_apply.py tests\test_gsd_bridge.py tests\test_transaction.py tests\test_cli.py tests\test_lifecycle_cli.py` | Passed | `60 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `131 passed, 4 skipped` |
+| `python -m compileall -q src scripts` | Passed | compiled source and scripts after apply GSD config sync changes |
+| `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7; `NOTICE.md` and package metadata now carry the release attribution record.
@@ -426,10 +447,10 @@
 - `ecc-init apply --yes` installs bundled and explicit pinned GitHub archive project-scope files transactionally; global components and real external installers remain guarded or unsupported.
 - `init --yes` now routes to project-level apply and can install bundled project files; it still does not install GSD Core unless `--install-gsd` is explicit.
 - `apply --install-gsd --yes` can invoke the pinned GSD installer explicitly, but the device/runtime-level GSD install remains outside project file rollback.
-- Apply currently previews GSD config sync; writing `.planning/config.json` as part of the apply transaction remains future work.
+- Apply now transactionally syncs existing `.planning/config.json`, but does not initialize missing GSD config; users still need GSD project initialization before config sync can write.
 - `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in 0.2.0a0.
 - `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
 ## Next permitted batch
-- Wire apply GSD config sync writes transactionally now that bundled and explicit pinned GitHub archive file projection semantics are stable.
-- Expand GitHub archive directory projection or default Pack source switching only after an explicit source-policy decision; keep external_cli/Anthropic/Vercel real installs out of scope.
+- Extend `doctor` and `status --json` to report GSD runtime/source lock/receipt/apply readiness without writing files.
+- Add bundled E2E fixtures for empty, FastAPI+LangGraph, React+Vite, and existing-GSD-config project flows before expanding source behavior.

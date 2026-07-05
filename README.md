@@ -45,7 +45,7 @@ ecc-init apply ecc-plan.json --dry-run --json
 ecc-init apply ecc-plan.json --yes --json
 ```
 
-`apply` now produces a structured `ApplyReport` with plan validation, project-root validation, planned files, GSD status, and optional GSD config sync preview. With `--yes`, the transactional apply path installs bundled project-scope Pack files and explicitly configured pinned GitHub archive project files, writes `.claude/ecc-sources.lock.json`, updates state v2 managed-file ownership, writes an operation receipt, and can be rolled back by operation id.
+`apply` now produces a structured `ApplyReport` with plan validation, project-root validation, planned files, GSD status, and optional GSD config sync reporting. With `--yes`, the transactional apply path installs bundled project-scope Pack files and explicitly configured pinned GitHub archive project files, writes `.claude/ecc-sources.lock.json`, updates state v2 managed-file ownership, merges existing `.planning/config.json` GSD config unless `--no-sync-gsd` is supplied, writes an operation receipt, and can be rolled back by operation id.
 
 Legacy 0.1.x writes are still available for migration compatibility:
 
@@ -185,7 +185,7 @@ ecc-init update . --packs --yes --json
 ecc-init remove . --pack frontend-essential --yes --json
 ```
 
-`init . --yes` enters the project-level apply path and does not install GSD Core by default. Use `init . --yes --install-gsd` only when you intentionally want the device/runtime-level GSD install step included. `apply --yes` currently writes bundled and explicit pinned GitHub archive project-scope Pack files transactionally; non-project and unsupported component installs are guarded. `remove` only edits ecc-init managed GSD config bindings in this phase. It does not delete user-modified Skill files or uninstall GSD Core.
+`init . --yes` enters the project-level apply path and does not install GSD Core by default. Use `init . --yes --install-gsd` only when you intentionally want the device/runtime-level GSD install step included. `apply --yes` currently writes bundled and explicit pinned GitHub archive project-scope Pack files transactionally, and only syncs GSD config when `.planning/config.json` already exists. Missing GSD config is not created. Non-project and unsupported component installs are guarded. `remove` only edits ecc-init managed GSD config bindings in this phase. It does not delete user-modified Skill files or uninstall GSD Core.
 
 ### Legacy v1 migration
 
