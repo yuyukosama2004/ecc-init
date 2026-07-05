@@ -1,10 +1,11 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 7, 0.2.0a1 release gate
-- Batch: 2026-07-05 release dry-run, wheel smoke, and pipx gate
+- Phase: Post-alpha batch 8, 0.2.0a1 完成确认与审计
+- Batch: 2026-07-05 CODEX_NEXT_PLAN_GSD_APPLY.md 全量闭环验证
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
+- Verified: 2026-07-05 Asia/Shanghai
 
 ## Scope
 - In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; transactional apply GSD config sync for existing `.planning/config.json`; `.claude/ecc-sources.lock.json`; apply operation receipts including config changes; apply rollback by operation id; read-only `status --json` and `doctor --json` audit reporting for GSD runtime, source lock, receipt, installed/planned Packs, plan/apply consistency, managed-file dirtiness, and apply readiness; bundled E2E fixtures for empty, FastAPI+LangGraph, React+Vite, and existing-GSD-config project flows; release-gating assertions that ordinary E2E remains bundled/source-lock/receipt/rollback based; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, existing GSD config sync, `--no-sync-gsd`, user-file preservation, rollback, read-only audit behavior, and bundled E2E flows.
@@ -496,6 +497,55 @@
 - `ecc-init update --sources` verifies declarations and reports preview status only; it does not fetch new remote source content in `0.2.0a1`.
 - `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
+## Batch 8 verification (2026-07-05 完成确认)
+| Command | Result | Evidence |
+|---|---|---|
+| `git status --short` | Clean | Only untracked `CODEX_NEXT_PLAN_GSD_APPLY.md` |
+| `git branch --show-current` | `main` | |
+| `git log -5 --oneline` | `b19f05d` Prepare 0.2.0a1 release gate | Latest commit |
+| `python -m pytest` (PYTHONPATH=src) | 139 passed, 4 skipped | Full suite green |
+| `python -m compileall -q src scripts` | Passed | No compilation errors |
+| `git diff --check` | Passed | No whitespace issues |
+| `python -m pytest tests/test_gsd_install_cli.py tests/test_apply.py tests/test_workflows.py tests/test_lifecycle_cli.py tests/test_e2e_apply_bundled.py -v` | 52 passed | Core GSD/apply/E2E coverage |
+
+## CODEX_NEXT_PLAN_GSD_APPLY.md 完成度评估
+
+本计划共 8 个 Phase (A–H)，全部已在 0.2.0a1 中完成：
+
+| Phase | 内容 | 状态 |
+|---|---|---|
+| A | GSD 命令语义修正 | ✅ 完成 |
+| B | Apply 骨架 (ApplyReport, 校验, dry-run) | ✅ 完成 |
+| C | Bundled Component Install (事务型写入) | ✅ 完成 |
+| D | sync-gsd 集成 apply | ✅ 完成 |
+| E | Source Lock / Receipt / Doctor 完整化 | ✅ 完成 |
+| F | GitHubArchive Component Projection (单文件) | ✅ 完成 |
+| G | Full E2E (4 个 fixture) | ✅ 完成 |
+| H | Release Gate (0.2.0a1) | ✅ 完成 |
+
+计划中明确标记 out-of-scope 且保持 out-of-scope 的项目：
+- Archive directory projection（仅支持单文件）
+- external_cli / Anthropic / Vercel / UI UX Pro Max 真实安装
+- `update --sources --yes` 远程源拉取
+- `remove --pack X --files --yes` 文件级删除
+- 新 Pack
+- `.planning/config.json` 自动创建
+
+## Architecture constraint verification
+
+所有核心架构约束均已遵守：
+- [x] 不复制 GSD internal commands/agents/hooks/skills
+- [x] 不把 GSD 源码放进本仓库
+- [x] GSD 不随每次 `init` 自动安装
+- [x] `ecc-init apply` 默认不自动安装 GSD（除非 `--install-gsd`）
+- [x] 所有写操作默认 dry-run，必须 `--yes`
+- [x] `shell=False`（参数列表传递）
+- [x] Windows `.cmd` 后缀处理
+- [x] Node 缺失/版本不满足时阻塞
+- [x] `init --yes` 不再调用 workflow update 伪装 install
+- [x] `apply plan.json --dry-run --json` 输出稳定结构且不写文件
+
 ## Next permitted batch
-- Prepare the `v0.2.0-alpha.1` release tag after maintainer approval, or continue with the next explicitly scoped source lifecycle batch.
-- Keep broader source update/remove-file behavior, archive directory projection, and real third-party installers out of scope until a new plan authorizes them.
+- 标记 `v0.2.0-alpha.1` release tag（需维护者批准）
+- 或进入新的明确范围 source 生命周期批次（archive directory projection、source update 远程拉取、remove files）
+- 继续保持 external_cli/Anthropic/Vercel 真实安装和 .planning/config.json 自动创建为 out-of-scope
