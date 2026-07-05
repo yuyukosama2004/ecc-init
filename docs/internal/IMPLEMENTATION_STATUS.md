@@ -1,8 +1,8 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 10, 0.2.0a1 Alpha 收口
-- Batch: 2026-07-05 CLAUDE_CODE_FIXLIST_ROUND2_0.2.0A1.md 全量 P0
+- Phase: 0.2.0a1 Alpha 收口完成，待 tag
+- Batch: 2026-07-05 最终清理确认
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
 - Verified: 2026-07-05 Asia/Shanghai
@@ -585,7 +585,15 @@
 | `python -m compileall -q src scripts` | Passed | No compilation errors |
 | `git diff --check` | Passed | CRLF normalization warnings only (Windows) |
 
-## Next permitted batch
+## 最终清理验证 (2026-07-05)
+| 检查项 | 结果 |
+|---|---|
+| `doctor()` 仅保留 `DoctorCheck` 实现 | ✅ 无旧 tuple 残留 |
+| 不可达代码 | ✅ 无 |
+| `python -m pytest` | 149 passed, 4 skipped |
+| `python -m compileall -q src scripts` | OK |
+| `git diff --check` | OK |
+
+## Next
 - Tag `v0.2.0-alpha.1` release after maintainer approval.
-- Round 1 and Round 2 fix lists are fully complete.
-- Keep external_cli/Anthropic/Vercel real installs, new Packs, and .planning/config.json auto-creation out of scope.
+- Round 1 + Round 2 修复清单全部完成。
