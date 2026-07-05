@@ -1,0 +1,8 @@
+[project]
+name = "fastapi-langgraph-fixture"
+version = "0.1.0"
+dependencies = [
+  "fastapi",
+  "langchain",
+  "langgraph",
+]

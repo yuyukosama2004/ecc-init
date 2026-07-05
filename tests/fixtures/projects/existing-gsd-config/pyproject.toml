@@ -1,0 +1,8 @@
+[project]
+name = "existing-gsd-config-fixture"
+version = "0.1.0"
+dependencies = [
+  "fastapi",
+  "langchain",
+  "langgraph",
+]

@@ -1,13 +1,13 @@
 # Implementation Status
 
 ## Current phase
-- Phase: Post-alpha batch 5, read-only apply audit status
-- Batch: 2026-07-05 status/doctor apply audit integration
+- Phase: Post-alpha batch 6, bundled apply E2E fixtures
+- Batch: 2026-07-05 bundled E2E release-gating fixtures
 - Branch: main
 - Started: 2026-07-04 Asia/Shanghai
 
 ## Scope
-- In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; transactional apply GSD config sync for existing `.planning/config.json`; `.claude/ecc-sources.lock.json`; apply operation receipts including config changes; apply rollback by operation id; read-only `status --json` and `doctor --json` audit reporting for GSD runtime, source lock, receipt, installed/planned Packs, plan/apply consistency, managed-file dirtiness, and apply readiness; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, existing GSD config sync, `--no-sync-gsd`, user-file preservation, rollback, and read-only audit behavior.
+- In scope: baseline command evidence; `ecc-init gsd status/install/update/verify`; pinned runtime/scope GSD installer command semantics; `init --yes` separation from workflow update; `ApplyReport` dry-run/preflight skeleton; apply project-root/path/registry validation; bundled project-scope component writes behind `--yes`; explicit pinned GitHub archive project component projection; transactional apply GSD config sync for existing `.planning/config.json`; `.claude/ecc-sources.lock.json`; apply operation receipts including config changes; apply rollback by operation id; read-only `status --json` and `doctor --json` audit reporting for GSD runtime, source lock, receipt, installed/planned Packs, plan/apply consistency, managed-file dirtiness, and apply readiness; bundled E2E fixtures for empty, FastAPI+LangGraph, React+Vite, and existing-GSD-config project flows; release-gating assertions that ordinary E2E remains bundled/source-lock/receipt/rollback based; tests for GSD dry-run, command shape, environment blocking, init/apply boundary, apply JSON stability, bundled apply writes, fixed GitHub archive apply from offline cache, optional archive skip behavior, existing GSD config sync, `--no-sync-gsd`, user-file preservation, rollback, read-only audit behavior, and bundled E2E flows.
 - Out of scope: copying, vendoring, forking, or modifying GSD Core; real external_cli/Anthropic/Vercel/UI UX Pro Max installs; adding new Packs; global component writes; switching default Packs away from bundled fallbacks; GitHub archive directory projection; creating `.planning/config.json` when GSD has not initialized the project; deleting user files; executing unpinned installers in tests.
 
 ## Baseline
@@ -153,6 +153,11 @@
 - [x] Extended `doctor --json` with GSD runtime, installed Packs, project Source Lock, latest apply receipt, apply readiness, and plan/apply consistency checks.
 - [x] Changed doctor path checks to probe writability through existing parents without creating missing runtime directories.
 - [x] Added status/doctor tests covering apply audit JSON after apply and no-write doctor directory probing.
+- [x] Added bundled E2E fixtures for empty, FastAPI+LangGraph, React+Vite, and existing-GSD-config projects.
+- [x] Added `tests/test_e2e_apply_bundled.py` covering `plan --output`, `apply --yes --skip-gsd-check`, `status --json`, `doctor --json`, and `rollback --operation-id`.
+- [x] Added release-gating E2E assertions that ordinary bundled flows lock only the `bundled` source, avoid `CLAUDE_HOME` global writes, write Source Lock/receipt/state, and rollback generated files.
+- [x] Added existing-GSD-config E2E coverage proving apply syncs `agent_skills` while preserving explicit user config values and rollback restores the original config.
+- [x] Updated E2E evidence docs so `apply` is no longer described as validate-only.
 
 ## Decisions
 - ID: D-2026-07-03-01
@@ -360,6 +365,11 @@
 - Evidence: New projects have not written `.claude/ecc-sources.lock.json` or an operation receipt yet, while the next plan requires status/doctor to report readiness without writing files.
 - Consequence: `status --json` and `doctor --json` can explain first-apply state without creating directories or blocking a clean project-level apply preview.
 
+- ID: D-2026-07-05-04
+- Decision: Keep bundled E2E fixtures static and run them through the CLI with a fake read-only GSD runtime status.
+- Evidence: Phase G requires real user-path coverage for plan/apply/status/doctor/rollback while ordinary CI must not install GSD or run network-backed source behavior.
+- Consequence: `tests/test_e2e_apply_bundled.py` covers the project-level closed loop without invoking external installers, downloading sources, or writing global GSD runtime files.
+
 ## Subagent ledger
 | ID | Role | Task | Read/Write | Files owned | Result | Retries |
 |---|---|---|---|---|---|---|
@@ -449,6 +459,11 @@
 | `$env:PYTHONPATH='src'; python -m pytest` | Passed | `134 passed, 4 skipped` |
 | `python -m compileall -q src scripts` | Passed | compiled source and scripts after status/doctor audit changes |
 | `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
+| `$env:PYTHONPATH='src'; python -m pytest tests/test_e2e_apply_bundled.py` | Passed | `4 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest tests/test_e2e_apply_bundled.py tests/test_apply.py tests/test_lifecycle_cli.py tests/test_frontend.py tests/test_stack_packs.py` | Passed | `55 passed` |
+| `$env:PYTHONPATH='src'; python -m pytest` | Passed | `138 passed, 4 skipped` |
+| `python -m compileall -q src scripts` | Passed | compiled source and scripts after bundled E2E fixture changes |
+| `git diff --check` | Passed | exit code 0; Git emitted CRLF normalization warnings only |
 
 ## Remaining risks
 - The tracked `LICENSE` deletion was user-intended and committed before phase 7; `NOTICE.md` and package metadata now carry the release attribution record.
@@ -467,5 +482,5 @@
 - `ecc-init remove` removes only managed GSD config bindings; it intentionally does not delete Skill files or uninstall GSD Core.
 
 ## Next permitted batch
-- Add bundled E2E fixtures for empty, FastAPI+LangGraph, React+Vite, and existing-GSD-config project flows before expanding source behavior.
-- Add release-gating assertions around the bundled E2E fixtures before enabling any broader external source behavior.
+- Run the release-gate batch: release dry-run, wheel content check, pipx smoke, and documentation/version decision for `0.2.0a1` vs beta-prep.
+- Keep broader source update/remove-file behavior out of scope until bundled E2E and release gates remain green.

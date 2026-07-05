@@ -1,0 +1,13 @@
+{
+  "parallelization": {
+    "enabled": false
+  },
+  "workflow": {
+    "use_worktrees": false
+  },
+  "agent_skills": {
+    "gsd-executor": [
+      ".claude/skills/custom-existing"
+    ]
+  }
+}
