@@ -49,6 +49,9 @@ def test_gsd_install_dry_run_plans_pinned_command(monkeypatch, tmp_path: Path) -
 
 def test_gsd_install_runs_only_after_environment_ok(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("ecc_init.workflows.gsd.shutil.which", _which)
+    # Isolate from real ~/.claude so _has_verified_markers does not
+    # pick up a real GSD install on the developer's machine.
+    monkeypatch.setenv("CLAUDE_HOME", str(tmp_path / "claude-isolated"))
     runner = FakeRunner()
     adapter = GsdWorkflowAdapter(runner)
 

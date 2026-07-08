@@ -36,24 +36,41 @@ All write-capable commands are dry-run by default. Preview the device/runtime in
 ecc-init gsd install --dry-run --json
 ```
 
-For Claude global installs, the planned command is pinned and argument-list based:
+The planned command uses the pinned npm package:
 
 ```powershell
-npx -y @opengsd/gsd-core@1.6.1 --claude --global
+npm install -g @opengsd/gsd-core@1.6.1
 ```
 
-Project/local scope uses the same pinned package with local scope:
-
-```powershell
-npx -y @opengsd/gsd-core@1.6.1 --claude --local
-```
-
-## Install Or Update
+## Install
 
 Run the installer only when you intentionally want to modify the selected runtime:
 
 ```powershell
 ecc-init gsd install --yes --json
+```
+
+This runs `npm install -g @opengsd/gsd-core@1.6.1`. After npm finishes, the status will be `installed_unverified` — the package is installed globally but GSD runtime artifacts are not yet registered with your AI coding tool.
+
+## Post-Install: Register GSD with Your Runtime
+
+**This is a required manual step.** After `ecc-init gsd install --yes` succeeds, run the GSD setup command for your runtime:
+
+```powershell
+# Claude Code (global)
+gsd-core --claude --global
+
+# Claude Code (project only)
+gsd-core --claude --local
+```
+
+This registers GSD commands, skills, agents, and hooks with Claude Code. After this step, `ecc-init gsd status` should report `installed_verified`.
+
+> **Why two steps?** `ecc-init` delegates the runtime registration to GSD Core's own installer. The two-step flow (`ecc-init gsd install --yes` → `gsd-core --claude --global`) ensures ecc-init does not copy or modify GSD internals.
+
+## Update
+
+```powershell
 ecc-init gsd update --yes --json
 ```
 

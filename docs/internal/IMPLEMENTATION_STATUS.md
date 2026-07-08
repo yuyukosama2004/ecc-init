@@ -594,6 +594,28 @@
 | `python -m compileall -q src scripts` | OK |
 | `git diff --check` | OK |
 
+## 2026-07-08 实战验证 (novelflow 项目)
+
+在真实项目 `D:\项目\novelflow`（Python FastAPI + LangGraph）上完成首次端到端部署，发现并解决了以下问题：
+
+### 发现的问题
+
+| 问题 | 现象 | 解决 |
+|---|---|---|
+| GSD install `npx` 在 Windows 上失败 | `'gsd-core' 不是内部或外部命令` — npx 运行临时进程，内部 install.js 调用 `gsd-core` 时 Windows PATH 找不到 | 切换到 `npm install -g` (commit d959535) |
+| Post-install 验证缺失文档 | `ecc-init gsd install --yes` 返回 `installed_unverified`，用户不知道还需要手动跑 `gsd-core --claude --global` | 更新 install-gsd.md 补充两步流程 |
+| 旧项目 v1 状态阻塞 apply | `project state is legacy schema; run ecc-init migrate --dry-run before apply` — 已有项目需先迁移 | 更新 apply-packs.md 补充迁移前置条件 |
+| 全局组件被跳过 | quality-basic 的 skill-code-review/security-review/code-tour 被标记 `non-project scope` 跳过，用户需要手动复制 | 更新 apply-packs.md 补充手动安装方法 |
+| `apply --scope global` 不存在 | 用户尝试 `ecc-init apply plan.json --yes --scope global` 报错 unrecognized arguments | apply 的 scope 是 per-component 而非 per-invocation |
+
+### 实战结论
+
+- **GSD 安装是两步流程**：`ecc-init gsd install --yes`（npm 安装包）→ `gsd-core --claude --global`（注册到 Claude Code）
+- **迁移路径必须明确**：旧 v1 项目 `migrate .` → `plan .` → `apply plan.json --yes`
+- **全局组件手动安装可接受但需文档化**：0.2.0a1 跳过全局组件是设计决定，但不是所有用户都能理解原因
+- **`partial` 状态是预期行为**：全局组件跳过导致的状态标记，不影响项目核心功能
+
 ## Next
 - Tag `v0.2.0-alpha.1` release after maintainer approval.
 - Round 1 + Round 2 修复清单全部完成。
+- 0.2.0a2 改进计划见 `docs/internal/NEXT_PHASE_PLAN_0.2.0A2.md`。
