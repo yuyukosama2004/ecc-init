@@ -89,6 +89,8 @@ def _parser() -> argparse.ArgumentParser:
     apply.add_argument("--no-sync-gsd", dest="sync_gsd", action="store_false", help="skip GSD config sync")
     apply.set_defaults(sync_gsd=None)
     apply.add_argument("--offline", action="store_true", help="do not use network-backed providers")
+    apply.add_argument("--scope", dest="apply_scope", choices=["project", "global", "all"], default="project",
+                       help="which component scopes to install: project (default), global, or all")
     apply.add_argument("--json", action="store_true", help="output JSON")
 
     gsd = sub.add_parser("gsd", help="manage device/runtime-level GSD Core")
@@ -539,6 +541,7 @@ def _print_apply(args) -> int:
             sync_gsd=args.sync_gsd,
             offline=args.offline,
             install_gsd=args.install_gsd,
+            apply_scope=getattr(args, 'apply_scope', 'project'),
         ),
     )
     payload = report.to_dict()

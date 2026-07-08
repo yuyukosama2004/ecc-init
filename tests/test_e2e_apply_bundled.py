@@ -96,7 +96,7 @@ def test_empty_project_plan_apply_status_doctor_and_rollback(tmp_path: Path, mon
     assert not (project / ".claude" / "skills").exists()
     assert (project / "CLAUDE.md").exists()
     assert (project / "docs" / "PROJECT_OVERVIEW.md").exists()
-    assert any("skipped non-project component" in warning for warning in apply_payload["warnings"])
+    assert any("global-scope" in warning for warning in apply_payload["warnings"])
 
     _rollback_applied_project(capsys, project, apply_payload["operation_id"])
     assert not (project / "CLAUDE.md").exists()

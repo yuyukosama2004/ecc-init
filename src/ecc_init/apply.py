@@ -31,6 +31,8 @@ class ApplyOptions:
     runtime: str = "claude"
     scope: str = "global"
     version: str = "1.6.1"
+    # Which component target_scopes to install: "project", "global", or "all"
+    apply_scope: str = "project"
 
 
 @dataclass
@@ -175,7 +177,7 @@ def validate_apply_plan(plan: InstallPlan, *, expected_project_root: Path | None
             warnings.append(f"file operation has no matching resolved component: {operation.operation_id}")
 
     if any(operation.target_scope == "global" for operation in plan.file_operations):
-        warnings.append("Plan includes global file operations; apply will not write them in this batch.")
+        warnings.append("Plan includes global file operations; pass --scope global or --scope all to install them.")
     return warnings, errors
 
 
@@ -284,12 +286,14 @@ def apply_install_plan(plan: InstallPlan, options: ApplyOptions | None = None) -
         )
         try:
             state = _load_project_state(paths, plan)
+            component_scope = {"project"} if options.apply_scope == "project" else {"global"} if options.apply_scope == "global" else {"project", "global"}
             install_report = ComponentInstaller(registry).install(
                 plan,
                 transaction=transaction,
                 state=state,
                 cache_dir=paths.cache_dir,
                 offline=options.offline,
+                scope=component_scope,
             )
             warnings.extend(install_report.warnings)
             errors.extend(install_report.errors)

@@ -170,7 +170,10 @@ class ComponentInstaller:
         state: dict[str, Any],
         cache_dir: Path | None = None,
         offline: bool = False,
+        scope: set[str] | None = None,
     ) -> ComponentInstallReport:
+        if scope is None:
+            scope = {"project"}
         report = ComponentInstallReport(files_planned=[operation.to_dict() for operation in plan.file_operations])
         detection = detect_project(plan.project_root)
         for resolved in plan.resolved_components:
@@ -197,15 +200,15 @@ class ComponentInstaller:
                         )
                     )
                 continue
-            if component.target_scope != "project":
-                report.warnings.append(f"skipped non-project component in apply batch: {component.component_id}")
+            if component.target_scope not in scope:
+                report.warnings.append(f"skipped {component.target_scope}-scope component (apply --scope={','.join(sorted(scope))}): {component.component_id}")
                 report.files_skipped.append(
                     SkippedComponent(
                         component_id=component.component_id,
                         source_id=component.source_id,
                         target_path=resolved.target_path,
-                        reason=f"non-project scope ({component.target_scope}) not supported in current apply batch",
-                        required=component.required,
+                        reason=f"{component.target_scope}-scope component not in current apply scope ({','.join(sorted(scope))})",
+                        required=False,  # scope choice is user-controlled, never blocking
                     )
                 )
                 continue
