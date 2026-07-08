@@ -28,7 +28,7 @@ class FakeGsdAdapter:
         self.calls.append(("status", runtime, scope))
         return self._result(
             "not_installed",
-            PlannedCommand(("npx", "-y", f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}", "--claude", "--global"), "status"),
+            PlannedCommand(("npm", "install", "-g", f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}"), "status"),
         )
 
     def verify(self, paths, *, runtime="claude", scope="global"):
@@ -40,13 +40,7 @@ class FakeGsdAdapter:
         return self._result(
             "planned",
             PlannedCommand(
-                (
-                    "npx",
-                    "-y",
-                    f"{GSD_PACKAGE}@{options.version}",
-                    f"--{options.runtime}",
-                    "--global" if options.scope == "global" else "--local",
-                ),
+                ("npm", "install", "-g", f"{GSD_PACKAGE}@{options.version}"),
                 "install",
                 dry_run=options.dry_run,
             ),
@@ -68,11 +62,10 @@ def test_gsd_install_dry_run_json_uses_runtime_and_scope(tmp_path: Path, monkeyp
     assert payload["status"] == "planned"
     assert payload["commands"][0]["dry_run"] is True
     assert payload["commands"][0]["args"] == [
-        "npx",
-        "-y",
+        "npm",
+        "install",
+        "-g",
         "@opengsd/gsd-core@1.6.1",
-        "--claude",
-        "--global",
     ]
 
 
@@ -95,4 +88,4 @@ def test_gsd_update_project_scope_uses_local_flag(tmp_path: Path, monkeypatch, c
     payload = json.loads(capsys.readouterr().out)
 
     assert adapter.calls == [("update", "claude", "project"), ("install", "claude", "project")]
-    assert payload["commands"][0]["args"][-1] == "--local"
+    assert payload["commands"][0]["args"][0] == "npm"

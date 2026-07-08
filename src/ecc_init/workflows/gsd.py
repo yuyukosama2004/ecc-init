@@ -73,13 +73,12 @@ class GsdWorkflowAdapter:
         options = options or GsdInstallOptions()
         return PlannedCommand(
             args=(
-                _tool("npx"),
-                "-y",
+                _tool("npm"),
+                "install",
+                "-g",
                 f"{GSD_PACKAGE}@{options.version}",
-                self._runtime_flag(options.runtime),
-                self._scope_flag(options.scope),
             ),
-            description=f"Run the pinned official GSD Core installer for {options.runtime}/{options.scope}.",
+            description=f"Install pinned GSD Core globally via npm, then run its {options.runtime}/{options.scope} setup commands manually.",
             dry_run=options.dry_run,
         )
 
@@ -87,7 +86,7 @@ class GsdWorkflowAdapter:
         options = options or GsdInstallOptions()
         return PlannedCommand(
             args=self.install_command(options).args,
-            description=f"Re-run the pinned official GSD Core installer for {options.runtime}/{options.scope}.",
+            description=f"Re-run npm install -g for pinned GSD Core; then re-run {options.runtime} setup if needed.",
             dry_run=options.dry_run,
         )
 

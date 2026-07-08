@@ -38,8 +38,8 @@ def test_gsd_install_dry_run_plans_pinned_command(monkeypatch, tmp_path: Path) -
 
     assert result.status == "planned"
     command = result.commands[0].args
-    assert command[0].replace("\\", "/").endswith(("npx", "npx.cmd"))
-    assert command[1:] == ("-y", f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}", "--claude", "--global")
+    assert command[0].replace("\\", "/").endswith(("npm", "npm.cmd"))
+    assert command[1:] == ("install", "-g", f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}")
     assert result.logs == []
     assert runner.calls == []
     assert any(check.check_id == "node-version" and check.detail == "not checked during dry-run" for check in result.checks)
@@ -55,7 +55,7 @@ def test_gsd_install_runs_only_after_environment_ok(monkeypatch, tmp_path: Path)
     result = adapter.install(AppPaths.build(tmp_path), dry_run=False)
 
     assert result.status == "installed_unverified"
-    assert result.logs[0].args[-3:] == (f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}", "--claude", "--global")
+    assert result.logs[0].args[1:3] == ("install", "-g")
 
 
 def test_gsd_install_blocks_when_node_missing(monkeypatch, tmp_path: Path) -> None:
@@ -144,7 +144,7 @@ def test_gsd_local_project_command_uses_local_scope(monkeypatch, tmp_path: Path)
         GsdInstallOptions(scope="project", dry_run=True),
     )
 
-    assert result.commands[0].args[-2:] == ("--claude", "--local")
+    assert result.commands[0].args[1:4] == ("install", "-g", f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}")
 
 
 def test_gsd_update_reuses_official_installer(monkeypatch, tmp_path: Path) -> None:
@@ -153,8 +153,8 @@ def test_gsd_update_reuses_official_installer(monkeypatch, tmp_path: Path) -> No
 
     result = adapter.update(AppPaths.build(tmp_path), dry_run=True)
 
-    assert result.commands[0].args[0].replace("\\", "/").endswith(("npx", "npx.cmd"))
-    assert result.commands[0].args[-3:] == (f"{GSD_PACKAGE}@{GSD_PINNED_VERSION}", "--claude", "--global")
+    assert result.commands[0].args[0].replace("\\", "/").endswith(("npm", "npm.cmd"))
+    assert result.commands[0].args[1:3] == ("install", "-g")
 
 
 def test_gsd_windows_command_suffix_is_preserved(monkeypatch) -> None:
@@ -163,7 +163,7 @@ def test_gsd_windows_command_suffix_is_preserved(monkeypatch) -> None:
 
     command = adapter.install_command()
 
-    assert command.args[0] == "npx.cmd"
+    assert command.args[0] == "npm.cmd"
 
 
 def test_gsd_inspect_and_remove_are_safe_strategy_only(tmp_path: Path) -> None:
