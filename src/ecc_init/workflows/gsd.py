@@ -242,7 +242,8 @@ class GsdWorkflowAdapter:
             return WorkflowResult(self.workflow_id, "planned", [command], checks, warnings=warnings)
         if not all(check.ok for check in checks):
             return WorkflowResult(self.workflow_id, "blocked_environment", [command], checks, warnings=warnings)
-        result = self.runner.run(list(command.args), cwd=paths.project_root)
+        install_runner = self.runner if not isinstance(self.runner, SubprocessRunner) else SubprocessRunner(capture_output=False)
+        result = install_runner.run(list(command.args), cwd=paths.project_root)
         if result.ok:
             status = "installed_verified" if self._has_verified_markers(paths, options) else "installed_unverified"
             if status == "installed_unverified":
@@ -282,7 +283,8 @@ class GsdWorkflowAdapter:
             return WorkflowResult(self.workflow_id, "planned", [command], checks=checks)
         if not all(check.ok for check in checks):
             return WorkflowResult(self.workflow_id, "blocked_environment", [command], checks=checks)
-        result = self.runner.run(list(command.args), cwd=paths.project_root)
+        update_runner = self.runner if not isinstance(self.runner, SubprocessRunner) else SubprocessRunner(capture_output=False)
+        result = update_runner.run(list(command.args), cwd=paths.project_root)
         if result.ok:
             status = "updated_verified" if self._has_verified_markers(paths, options) else "updated_unverified"
         else:

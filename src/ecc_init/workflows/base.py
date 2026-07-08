@@ -39,11 +39,14 @@ class CommandRunner(Protocol):
 
 
 class SubprocessRunner:
+    def __init__(self, capture_output: bool = True):
+        self._capture_output = capture_output
+
     def run(self, args: list[str], *, cwd: Path | None = None) -> CommandResult:
         process = subprocess.run(
             args,
             cwd=cwd,
-            capture_output=True,
+            capture_output=self._capture_output,
             text=True,
             encoding="utf-8",
             errors="replace",
