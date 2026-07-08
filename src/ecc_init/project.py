@@ -37,6 +37,27 @@ def structure_fingerprint(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _agent_policy_text() -> str:
+    """Generate natural-language agent usage constraints for CLAUDE.md.
+
+    These rules are read by Claude Code and constrain sub-agent spawning
+    in every session. The default limits are conservative and may be
+    tightened further by editing CLAUDE.md directly.
+    """
+    return (
+        "- **禁止使用子代理**：纯问答、单文件小修改、文档查阅、简单格式转换、"
+        "已明确指定具体实现的单步操作。\n"
+        "- **最多 1 个子代理**：涉及 2–5 个文件的局部重构、单模块 bug 修复、"
+        "为单一接口补充测试。\n"
+        "- **最多 3 个并发子代理**：跨模块架构调整、多表 schema 变更、"
+        "涉及前后端协同的功能开发、需要同时验证多个独立假设的探索任务。\n"
+        "- 上述并发上限为硬性约束，不得以\"提高效率\"为由突破。"
+        "接近上限时必须串行复用而非新建代理。\n"
+        "- 使用子代理前，先在回复中说明任务的复杂度级别和预计代理数，"
+        "获得用户默许后再执行。"
+    )
+
+
 def render_project_section(template: str, detection: DetectionResult) -> str:
     stacks = "、".join(detection.stacks) if detection.stacks else "未识别（由 Claude 根据代码进一步判断）"
     skills = "\n".join(f"- `{stack}-patterns`（如已安装）" for stack in detection.stacks)
@@ -45,7 +66,12 @@ def render_project_section(template: str, detection: DetectionResult) -> str:
     commands = "\n".join(f"- {label}：`{command}`" for label, command in detection.commands.items())
     if not commands:
         commands = "- 暂未从配置文件识别；执行前读取项目实际配置"
-    return template.replace("{{DETECTED_STACKS}}", stacks).replace("{{PROJECT_SKILLS}}", skills).replace("{{PROJECT_COMMANDS}}", commands)
+    return (
+        template.replace("{{DETECTED_STACKS}}", stacks)
+        .replace("{{PROJECT_SKILLS}}", skills)
+        .replace("{{PROJECT_COMMANDS}}", commands)
+        .replace("{{AGENT_POLICY}}", _agent_policy_text())
+    )
 
 
 def render_project_overview(template: str, detection: DetectionResult) -> str:
