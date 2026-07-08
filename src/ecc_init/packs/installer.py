@@ -6,7 +6,9 @@ from typing import Any
 
 from ..core.models import ComponentSpec, InstallPlan
 from ..core.transaction import Transaction
+from ..detect import DetectionResult, detect_project
 from ..errors import ConflictError, SourceError
+from ..project import render_project_overview, render_project_section
 from ..resources import read_resource_text
 from ..sources import GitHubArchiveProvider
 from ..util import read_text, sha256_text
@@ -122,14 +124,22 @@ class ComponentInstaller:
     def __init__(self, registry: Registry):
         self.registry = registry
 
-    def _read_bundled_component(self, component: ComponentSpec) -> str:
+    def _read_bundled_component(self, component: ComponentSpec, detection: DetectionResult | None = None) -> str:
         includes = list(component.projection_include)
         if len(includes) != 1:
             raise SourceError(f"bundled component {component.component_id} must project exactly one file in this batch")
         include = includes[0]
         if include.endswith("/"):
             raise SourceError(f"bundled directory projection is not enabled in this batch: {component.component_id}")
-        return read_resource_text(include)
+        content = read_resource_text(include)
+        # Template files use {{PLACEHOLDER}} variables that must be filled
+        # with project-specific detection results.
+        if include.startswith("templates/") and detection is not None:
+            if component.component_id == "project-overview":
+                content = render_project_overview(content, detection)
+            else:
+                content = render_project_section(content, detection)
+        return content
 
     def _read_github_archive_component(self, component: ComponentSpec, *, cache_dir: Path, offline: bool) -> str:
         source = self.registry.sources[component.source_id]
@@ -162,6 +172,7 @@ class ComponentInstaller:
         offline: bool = False,
     ) -> ComponentInstallReport:
         report = ComponentInstallReport(files_planned=[operation.to_dict() for operation in plan.file_operations])
+        detection = detect_project(plan.project_root)
         for resolved in plan.resolved_components:
             component = self.registry.components.get(resolved.component_id)
             if component is None:
@@ -203,7 +214,7 @@ class ComponentInstaller:
             owner = _component_owner(plan, self.registry, component.component_id)
             try:
                 if source.kind == "bundled":
-                    incoming = self._read_bundled_component(component)
+                    incoming = self._read_bundled_component(component, detection)
                 else:
                     if cache_dir is None:
                         raise SourceError(f"cache directory is required for github archive component: {component.component_id}")

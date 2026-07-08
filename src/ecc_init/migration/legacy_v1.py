@@ -192,6 +192,7 @@ def _state_v2(
         "managed_files": _filtered_managed_files(previous, removed_paths),
         "source_locks": {},
         "pending_gsd_config": {},
+        "code_tour_completed": False,
         "last_operation_id": operation_id,
         "last_initialized_at": previous.get("last_initialized_at") or now_iso(),
         "structure_fingerprint": structure_fingerprint(paths.project_root),

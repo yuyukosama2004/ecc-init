@@ -445,6 +445,7 @@ def _load_project_state(paths: AppPaths, plan: InstallPlan) -> dict[str, Any]:
             "managed_files": {},
             "source_locks": {},
             "pending_gsd_config": {},
+            "code_tour_completed": False,
         }
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"unable to read project state {paths.project_state}: {exc}") from exc
