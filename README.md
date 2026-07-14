@@ -1,5 +1,7 @@
 # ecc-init
 
+> 项目案例、设计取舍与后续更新：[execute42 / ecc-init](https://www.execute42.top/projects/ecc-init/)
+
 `ecc-init` 是一个轻量 Claude Code 配置初始化器。它不安装完整 ECC，而是：
 
 - 创建或合并全局 `~/.claude/CLAUDE.md`；
